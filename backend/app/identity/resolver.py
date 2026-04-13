@@ -40,11 +40,11 @@ async def resolve_identity(request: Request, db: AsyncSession) -> Identity:
                 is_anonymous=False
             )
         else:
-            logger.warning("Invalid API key")
+            logger.info("Invalid API key, falling back to anonymous")
     
     fingerprint = _generate_anonymous_fingerprint(request)
 
-    logger.warning(f"Anonymous user assigned id={fingerprint}")
+    logger.debug(f"Anonymous user assigned id={fingerprint}")
 
     return Identity(
         user_id = fingerprint,
@@ -52,11 +52,11 @@ async def resolve_identity(request: Request, db: AsyncSession) -> Identity:
         is_anonymous=True
     )
 
-def _generate_anonymous_fingerprint(request: Request)-> int:
+def _generate_anonymous_fingerprint(request: Request) -> int:
     ip = request.client.host if request.client else 'unknown'
-    user_agent = request.headers.get('user-agent','unknown')
 
-    raw = f"{ip}:{user_agent}"
+    raw = ip  
+
     hashed = hashlib.sha256(raw.encode()).hexdigest()
 
-    return int(hashed[:12],16)
+    return int(hashed[:16], 16)
