@@ -12,7 +12,13 @@ from app.identity.resolver import resolve_identity
 from app.identity.signals import extract_signals
 from app.policy.decision_engine import evaluate_request
 
+from app.features.feature_builder import FeatureBuilder
+from app.state.state_manager import StateManager
+
 logger = logging.getLogger(__name__)
+
+state_manager = StateManager()
+feature_builder = FeatureBuilder(state_manager)
 
 
 class RequestMiddleware(BaseHTTPMiddleware):
@@ -30,8 +36,17 @@ class RequestMiddleware(BaseHTTPMiddleware):
                 # Extract Signals
                 signals = await extract_signals(request)
 
+                #Build features
+                features = await feature_builder.build(identity, signals)
+
                 # Decision
-                action, reason, risk_score = await evaluate_request(identity, signals)
+                try:
+                    action, reason, risk_score = await evaluate_request(identity, signals, features)
+                except Exception as e:
+                    logger.error(f"Decision engine failed: {e}")
+                    action = 'allow'
+                    reason = 'redis down'
+                    risk_score = 0.0
 
                 # BLOCK
                 if action == "block":
@@ -85,4 +100,8 @@ class RequestMiddleware(BaseHTTPMiddleware):
 
             except Exception as e:
                 logger.error(f"Middleware error: {str(e)}")
-                return await call_next(request)
+                
+                return JSONResponse(
+                    status_code=500,
+                    content={'detail':'Internal middleware error'}
+                )
