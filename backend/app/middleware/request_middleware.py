@@ -46,6 +46,8 @@ class RequestMiddleware(BaseHTTPMiddleware):
                 # ---------------------------
                 identity = await resolve_identity(request, db)
                 signals = await extract_signals(request)
+                # ✅ Simulation label (for ML training)
+                label = request.headers.get("X-Simulated-Label", None)
 
                 # ---------------------------
                 # ✅ FEATURE TRACKING (ONLY HERE)
@@ -140,7 +142,8 @@ class RequestMiddleware(BaseHTTPMiddleware):
                     ml_data,
                     explanation,
                     request.state.request_uuid,
-                    status_code=response.status_code
+                    status_code=response.status_code,
+                    label=label
                 )
 
                 logger.info(
@@ -180,7 +183,8 @@ class RequestMiddleware(BaseHTTPMiddleware):
         ml_data,
         explanation,
         request_uuid,
-        status_code=200
+        status_code=200,
+        label=None
     ):
         try:
             # REQUEST LOG
@@ -206,7 +210,8 @@ class RequestMiddleware(BaseHTTPMiddleware):
                 reason=reason,
                 risk_score=risk_score,
                 explanation=explanation.get("summary"),
-                explanation_json=explanation
+                explanation_json=explanation,
+                ground_truth_label=label
             ))
 
             # FEATURE LOG

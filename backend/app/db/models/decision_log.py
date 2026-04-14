@@ -23,6 +23,8 @@ class DecisionLog(Base):
 
     risk_score = Column(Float)
 
+    ground_truth_label = Column(String, nullable=True)
+
     explanation = Column(Text)
 
     explanation_json = Column(JSONB)
