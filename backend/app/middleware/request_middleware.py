@@ -211,13 +211,15 @@ class RequestMiddleware(BaseHTTPMiddleware):
                 risk_score=risk_score,
                 explanation=explanation.get("summary"),
                 explanation_json=explanation,
-                ground_truth_label=label
+                ground_truth_label=label,
+                request_uuid=request_uuid
             ))
 
             # FEATURE LOG
             db.add(FeatureLog(
                 user_id=identity.user_id,
                 request_id=request_id,
+                request_uuid=request_uuid,
                 features=features,
                 behavioral_features={
                     'req_per_min': features.get('req_per_min'),
@@ -241,7 +243,8 @@ class RequestMiddleware(BaseHTTPMiddleware):
                     risk_score=risk_score,
                     risk_label=ml_data.get("label"),
                     explanation=explanation.get("summary"),
-                    feature_contributions=explanation.get("feature_contributions")
+                    feature_contributions=explanation.get("feature_contributions"),
+                    request_uuid=request_uuid
                 ))
 
             await db.commit()
