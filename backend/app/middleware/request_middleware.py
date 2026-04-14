@@ -41,35 +41,28 @@ class RequestMiddleware(BaseHTTPMiddleware):
 
         async with AsyncSessionLocal() as db:
             try:
-                # ---------------------------
                 # Identity + Signals
-                # ---------------------------
+
                 identity = await resolve_identity(request, db)
                 signals = await extract_signals(request)
-                # ✅ Simulation label (for ML training)
+                #Simulation label (for ML training)
                 label = request.headers.get("X-Simulated-Label", None)
 
-                # ---------------------------
-                # ✅ FEATURE TRACKING (ONLY HERE)
-                # ---------------------------
+                # FEATURE TRACKING
                 await state_manager.track_request(
                     identity.user_id,
                     request.url.path,
                     signals.ip_address
                 )
 
-                # ---------------------------
                 # Features
-                # ---------------------------
                 try:
                     features = await feature_builder.build(identity, signals)
                 except Exception as e:
                     logger.error(f"Feature builder failed: {e}")
                     features = {}
 
-                # ---------------------------
                 # Decision
-                # ---------------------------
                 try:
                     action, reason, risk_score, ml_data = await evaluate_request(
                         identity, signals, features
@@ -78,9 +71,7 @@ class RequestMiddleware(BaseHTTPMiddleware):
                     logger.error(f"Decision engine failed: {e}")
                     action, reason, risk_score, ml_data = "allow", "fallback", 0.0, None
 
-                # ---------------------------
                 # Explanation
-                # ---------------------------
                 explanation = Explainer.generate(
                     action=action,
                     reason=reason,
@@ -89,12 +80,10 @@ class RequestMiddleware(BaseHTTPMiddleware):
                     ml_data=ml_data
                 )
 
-                # ---------------------------
-                # 🚫 BLOCK FLOW
-                # ---------------------------
+                # BLOCK FLOW
                 if action == "block":
 
-                    # ✅ track error
+                    # track error
                     await state_manager.increment_error(identity.user_id)
 
                     request_id = await self._log_all(
@@ -114,18 +103,13 @@ class RequestMiddleware(BaseHTTPMiddleware):
                         }
                     )
 
-                # ---------------------------
-                # ⚠️ THROTTLE (progressive control)
-                # ---------------------------
+                # THROTTLE (progressive control)
                 if action == "throttle":
                     await asyncio.sleep(0.3)
 
-                # ---------------------------
                 # NORMAL FLOW
-                # ---------------------------
                 response = await call_next(request)
 
-                # ✅ track error ONLY if needed
                 if response.status_code >= 400:
                     await state_manager.increment_error(identity.user_id)
 
@@ -152,9 +136,7 @@ class RequestMiddleware(BaseHTTPMiddleware):
                     f"req_uuid={request.state.request_uuid}"
                 )
 
-                # ---------------------------
                 # Headers
-                # ---------------------------
                 response.headers["X-Request-ID"] = str(request_id)
                 response.headers["X-Request-UUID"] = request.state.request_uuid
 
@@ -168,9 +150,7 @@ class RequestMiddleware(BaseHTTPMiddleware):
                     content={"detail": "Internal middleware error"}
                 )
 
-    # =========================
     # CENTRALIZED LOGGING
-    # =========================
     async def _log_all(
         self,
         db,

@@ -7,7 +7,6 @@ from app.middleware.request_middleware import RequestMiddleware
 from app.db.base import Base
 from app.db.session import engine
 
-# 🔥 ADD THIS LINE (THIS FIXES EVERYTHING)
 from app.db.models import user, api_key, request_log, decision_log
 
 
@@ -50,10 +49,7 @@ async def test():
 async def health():
     return {'status': 'ok'}
 
-
-# ---------------------------
 # AUTH / LOGIN (attack target)
-# ---------------------------
 @app.post("/login")
 async def login(payload: dict):
     username = payload.get("username")
@@ -66,9 +62,7 @@ async def login(payload: dict):
     return {"status": "failed", "message": "Invalid credentials"}
 
 
-# ---------------------------
 # USER PROFILE
-# ---------------------------
 @app.get("/api/profile")
 async def profile():
     return {
@@ -77,10 +71,7 @@ async def profile():
         "role": "user"
     }
 
-
-# ---------------------------
 # DATA ENDPOINT (scraping target)
-# ---------------------------
 @app.get("/api/data")
 async def get_data():
     return {
@@ -89,42 +80,30 @@ async def get_data():
     }
 
 
-# ---------------------------
+
 # ADMIN (sensitive endpoint)
-# ---------------------------
 @app.get("/admin")
 async def admin():
     return {"status": "admin panel"}
 
-
-# ---------------------------
 # CONFIG (scanner target)
-# ---------------------------
 @app.get("/config")
 async def config():
     return {"debug": False, "version": "1.0"}
 
-
-# ---------------------------
 # PASSWORD RESET (attack surface)
-# ---------------------------
 @app.post("/reset-password")
 async def reset_password(payload: dict):
     email = payload.get("email")
     return {"status": "reset link sent", "email": email}
 
-
-# ---------------------------
 # DEBUG / HIDDEN (scanner)
-# ---------------------------
 @app.get("/debug")
 async def debug():
     return {"debug": "info"}
 
 
-# ---------------------------
 # PRIVATE API (high risk)
-# ---------------------------
 @app.get("/api/private")
 async def private():
     return {"secret": "sensitive data"}

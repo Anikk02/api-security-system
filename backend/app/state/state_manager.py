@@ -6,9 +6,7 @@ MAX_REQUESTS = 100
 
 class StateManager:
 
-    # ---------------------------
     # RATE LIMITING
-    # ---------------------------
     @staticmethod
     async def increment_request(user_id: int) -> int:
         key = f"user:{user_id}:count"
@@ -26,9 +24,7 @@ class StateManager:
         req_per_min = await StateManager.get_request_count(user_id, 60)
         return req_per_min > MAX_REQUESTS
 
-    # ---------------------------
     # BLOCK MANAGEMENT
-    # ---------------------------
     @staticmethod
     async def block_user(user_id: int, duration: int = 3600):
         key = f"user:{user_id}:blocked"
@@ -39,9 +35,7 @@ class StateManager:
         key = f"user:{user_id}:blocked"
         return await redis_client.exists(key) == 1
 
-    # ---------------------------
     # REQUEST TRACKING
-    # ---------------------------
     @staticmethod
     async def log_request(user_id: int, endpoint: str, status_code: int, ip: str):
         ts = time.time()
@@ -67,9 +61,8 @@ class StateManager:
         if ip:
             await redis_client.sadd(f"user:{user_id}:ips", ip)
             await redis_client.expire(f"user:{user_id}:ips", 300)
-    # ---------------------------
+
     # FEATURE BUILDER SUPPORT
-    # ---------------------------
     @staticmethod
     async def get_request_count(user_id: int, window: int) -> int:
         now = time.time()

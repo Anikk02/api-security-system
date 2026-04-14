@@ -6,9 +6,9 @@ from app.db.base import Base
 class APIKey(Base):
     __tablename__ = "api_keys"
 
-    id = Column(BigInteger, primary_key=True, index=True)  # ✅ FIXED
+    id = Column(BigInteger, primary_key=True, index=True) 
     key = Column(String, unique=True, index=True, nullable=False)
 
-    user_id = Column(BigInteger, nullable=False)  # ✅ FIXED
+    user_id = Column(BigInteger, nullable=False)
 
     created_at = Column(DateTime, default=datetime.utcnow)

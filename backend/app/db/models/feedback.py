@@ -6,9 +6,9 @@ from app.db.base import Base
 class Feedback(Base):
     __tablename__ = "feedback"
 
-    id = Column(BigInteger, primary_key=True, index=True)  # ✅ FIXED
+    id = Column(BigInteger, primary_key=True, index=True)
 
-    user_id = Column(BigInteger, index=True, nullable=True)  # ✅ FIXED
+    user_id = Column(BigInteger, index=True, nullable=True)
 
     was_blocked = Column(Boolean)
     was_correct = Column(Boolean)

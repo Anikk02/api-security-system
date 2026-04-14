@@ -26,7 +26,7 @@ async def evaluate_request(identity, signals, features=None):
     if await StateManager.is_blocked(user_id):
         return 'block', 'User temporarily blocked', 1.0, ml_data
 
-    # 2. Rate limit check (soft → hard escalation)
+    # 2. Rate limit check (soft -> hard escalation)
     if await StateManager.is_rate_limited(user_id):
         violations = await StateManager.increment_violation(user_id)
 

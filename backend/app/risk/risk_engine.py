@@ -72,15 +72,11 @@ async def compute_risk(signals, features: dict):
         logger.error(f"Risk computation failed: {e}")
         return 0.0, "low", "fallback mode", {}
     
-
-# -----------------------------
 # 1. BEHAVIORAL RISK
-# -----------------------------
 
 def _behavior_risk(features: dict) -> float:
     score = 0.0
 
-    # ✅ FIXED MAPPING
     req_count = features.get('req_per_min', 0)
     burst_ratio = features.get('burst_score', 1.0)
 
@@ -104,17 +100,14 @@ def _behavior_risk(features: dict) -> float:
 
     return min(score, 1.0)
 
-
-# -----------------------------
 # 2. PATTERN RISK
-# -----------------------------
 
 def _pattern_risk(features: dict) -> float:
     score = 0.0
 
     entropy = features.get("endpoint_entropy", 0)
 
-    # ✅ derive repetition instead of missing feature
+    #derive repetition
     unique = features.get("unique_endpoints", 0)
     total = features.get("req_per_min", 1)
     repetition = 1 - (unique / total) if total > 0 else 0
@@ -134,9 +127,7 @@ def _pattern_risk(features: dict) -> float:
     return min(score, 1.0)
 
 
-# -----------------------------
 # 3. ENDPOINT RISK
-# -----------------------------
 
 def _endpoint_risk(signals) -> float:
     score = 0.0
@@ -158,15 +149,12 @@ def _endpoint_risk(signals) -> float:
     return min(score, 1.0)
 
 
-# -----------------------------
 # 4. ML RISK (placeholder)
-# -----------------------------
 
 async def _ml_risk(features: dict) -> float:
     try:
         anomaly_score = 0.0
 
-        # ✅ FIXED keys
         if features.get("req_per_min", 0) > 120:
             anomaly_score += 0.5
 

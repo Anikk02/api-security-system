@@ -11,7 +11,7 @@ class MLPrediction(Base):
 
     user_id = Column(BigInteger, index=True, nullable=True)
 
-    # 🔗 LINK TO REQUEST
+    # LINK TO REQUEST
     request_id = Column(BigInteger, ForeignKey("request_logs.id"), nullable=False)
     request_uuid = Column(String, index=True)
 
