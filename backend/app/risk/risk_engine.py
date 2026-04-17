@@ -81,18 +81,18 @@ def _behavior_risk(features: dict) -> float:
     burst_ratio = features.get('burst_score', 1.0)
 
     # High request volume
-    if req_count > 100:
+    if req_count > 50:
         score += 0.6
-    elif req_count > 60:
+    elif req_count > 20:
         score += 0.4
-    elif req_count > 30:
+    elif req_count > 10:
         score += 0.2
 
     # Burst detection
-    if burst_ratio > 5:
-        score += 0.4
-    elif burst_ratio > 3:
-        score += 0.25
+    if burst_ratio > 0.8:
+        score += 0.5
+    elif burst_ratio > 0.5:
+        score += 0.3
 
     # Suspicious UA
     if features.get("is_suspicious_ua"):
@@ -113,9 +113,9 @@ def _pattern_risk(features: dict) -> float:
     repetition = 1 - (unique / total) if total > 0 else 0
 
     # High entropy = scanning
-    if entropy > 2.5:
+    if entropy > 0.7:
         score += 0.5
-    elif entropy > 1.5:
+    elif entropy > 0.4:
         score += 0.3
 
     # Repetition (bot behavior)
@@ -138,13 +138,20 @@ def _endpoint_risk(signals) -> float:
         "/admin",
         "/payment",
         "/reset-password",
+        "/api/data",
+        "/api/test",
+        "/api/secure",
+        "/api/user",
+        "/api/admin"
     ]
 
-    if signals.endpoint in sensitive_endpoints:
-        score += 0.4
+    endpoint = getattr(signals, 'endpoint',"")
 
-    if hasattr(signals, "method") and signals.method == "POST":
-        score += 0.1
+    if any(se in endpoint for se in sensitive_endpoints):
+        score+=0.6
+
+    if hasattr(signals, "method") and signals.method in ['POST', 'PUT','DELETE']:
+        score += 0.2
 
     return min(score, 1.0)
 

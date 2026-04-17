@@ -29,7 +29,7 @@ class Explainer:
 
             if req_count > 100:
                 factors.append("High request volume detected")
-                contributions["request_count_60s"] = req_count
+                contributions["request_count_min"] = req_count
 
             if burst > 3:
                 factors.append("Abnormal traffic burst pattern")

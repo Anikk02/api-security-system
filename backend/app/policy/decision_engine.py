@@ -1,6 +1,7 @@
 import logging
 from app.state.state_manager import StateManager
 from app.risk.risk_engine import compute_risk
+from app.policy.penalty_manager import apply_penalty
 
 logger = logging.getLogger(__name__)
 
@@ -15,65 +16,96 @@ async def evaluate_request(identity, signals, features=None):
 
     user_id = identity.user_id
 
-    # Default ML data
     ml_data = {
         "label": None,
         "explanation": None,
         "contributions": {}
     }
 
-    # 1. Hard block check
+    # 1. Hard block check (keep this fast-path)
     if await StateManager.is_blocked(user_id):
         return 'block', 'User temporarily blocked', 1.0, ml_data
 
-    # 2. Rate limit check (soft -> hard escalation)
+    # 2. Rate limit check (ONLY signal, no punishment here)
     if await StateManager.is_rate_limited(user_id):
-        violations = await StateManager.increment_violation(user_id)
+        base_action = 'throttle'
+        base_reason = 'Rate limit exceeded'
+    else:
+        base_action = None
+        base_reason = None
 
-        if violations > 3:
-            await StateManager.block_user(user_id, duration=3600)
-            logger.warning(f"User {user_id} blocked after repeated violations")
-            return 'block', 'Repeated rate limit violations', 0.95, ml_data
-
-        return 'throttle', 'Rate limit exceeded', 0.7, ml_data
-
-    # 3. Feature fallback
+    # 3. Feature fallback (UNCHANGED as requested)
     if features is None:
         logger.warning("FeatureBuilder not used - fallback to minimal features")
         features = {
-            "request_count_60s": 0,
+            "req_per_min": 0,
             "is_blocked": False
         }
 
     # 4. Risk Engine
     try:
         risk_score, label, explanation, contributions = await compute_risk(signals, features)
+
         ml_data = {
             "label": label,
             "explanation": explanation,
             "contributions": contributions
         }
+
     except Exception as e:
         logger.error(f"Risk engine failed: {e}")
         risk_score = 0.0
 
-    # 5. Strong behavioral rules
+    # 5. Base decision (NO penalties, NO blocking here)
+
+    # Behavioral block signal
     if features.get('is_blocked'):
-        return 'block', 'Behavioral block', 1.0, ml_data
+        base_action = 'block'
+        base_reason = 'Behavioral block'
 
-    if features.get('request_count_60s', 0) > 120:
-        await StateManager.increment_violation(user_id)
-        return 'throttle', 'Burst traffic detected', 0.8, ml_data
+    # Traffic burst
+    elif features.get('req_per_min', 0) > 80:
+        base_action = 'throttle'
+        base_reason = 'High traffic burst'
 
-    # 6. ML-based decisions
-    if risk_score > 0.85:
-        await StateManager.increment_violation(user_id)
-        await StateManager.block_user(user_id, duration=3600)
-        return 'block', 'High risk behavior', risk_score, ml_data
+    # ML-based decisions
+    elif risk_score > 0.7:
+        base_action = 'throttle'
+        base_reason = 'High risk detected'
 
-    if risk_score > 0.6:
-        await StateManager.increment_violation(user_id)
-        return 'throttle', 'Suspicious activity', risk_score, ml_data
+    elif risk_score > 0.4:
+        base_action = 'throttle'
+        base_reason = 'Suspicious activity'
 
-    # 7. Normal
-    return 'allow', 'Normal behavior', risk_score, ml_data
+    elif risk_score > 0.2:
+        base_action = 'allow'
+        base_reason = 'Low risk anomaly'
+
+    else:
+        base_action = 'allow'
+        base_reason = 'Normal behavior'
+
+    # 6. Penalty Manager (FINAL AUTHORITY)
+    try:
+        final_action, penalty_reason, meta = await apply_penalty(
+            identity=identity,
+            signals=signals,
+            risk_score=risk_score,
+            base_action=base_action
+        )
+
+        return (
+            final_action,
+            penalty_reason or base_reason,
+            risk_score,
+            {
+                **ml_data,
+                "penalty_meta": meta
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Penalty manager failed: {e}")
+
+        # fallback (safe)
+        return base_action, base_reason, risk_score, ml_data

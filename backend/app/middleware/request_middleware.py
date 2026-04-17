@@ -49,11 +49,11 @@ class RequestMiddleware(BaseHTTPMiddleware):
                 label = request.headers.get("X-Simulated-Label", None)
 
                 # FEATURE TRACKING
-                await state_manager.track_request(
+                '''await state_manager.track_request(
                     identity.user_id,
                     request.url.path,
                     signals.ip_address
-                )
+                )'''
 
                 # Features
                 try:
@@ -109,6 +109,14 @@ class RequestMiddleware(BaseHTTPMiddleware):
 
                 # NORMAL FLOW
                 response = await call_next(request)
+
+                # ✅ TRACK HERE (correct place)
+                await state_manager.track_request(
+                    identity.user_id,
+                    signals.endpoint,
+                    signals.ip_address,
+                    response.status_code   # ✅ now available
+                )
 
                 if response.status_code >= 400:
                     await state_manager.increment_error(identity.user_id)

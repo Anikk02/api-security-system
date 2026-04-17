@@ -20,8 +20,16 @@ class RequestSignals:
         self.timestamp = timestamp
 
 async def extract_signals(request: Request) -> RequestSignals:
-    ip = request.client.host if request.client else 'unknown'
-    user_agent = request.headers.get("user-agent","unknown")
+    # ✅ FIX: Support X-Forwarded-For (for simulation + proxies)
+    forwarded_ip = request.headers.get("X-Forwarded-For")
+
+    if forwarded_ip:
+        # take first IP (real client IP in proxy chain)
+        ip = forwarded_ip.split(",")[0].strip()
+    else:
+        ip = request.client.host if request.client else 'unknown'
+
+    user_agent = request.headers.get("user-agent", "unknown")
 
     endpoint = request.url.path
     method = request.method
@@ -33,7 +41,6 @@ async def extract_signals(request: Request) -> RequestSignals:
         ip_address=ip,
         user_agent=user_agent,
         endpoint=endpoint,
-        method = method,
-        timestamp = timestamp
+        method=method,
+        timestamp=timestamp
     )
-

@@ -15,48 +15,67 @@ class Identity:
 
     
 async def resolve_identity(request: Request, db: AsyncSession) -> Identity:
-    '''
-    Resolver user identity from request using:
-    - API Key (primary)
-    - fallback: anonymous user
-    '''
-    logger.info(f"Resolving identity for {request.url.path}")
+    logger.info(f"[IDENTITY] Resolving for path={request.url.path}")
+    
+    TRUST_PROXY = True
+    if TRUST_PROXY:
+        # ✅ Extract IP (single source of truth)
+        forwarded_ip = request.headers.get("X-Forwarded-For")
+
+        if forwarded_ip:
+            ip = forwarded_ip.split(",")[0].strip()
+            logger.debug(f"[IDENTITY] X-Forwarded-For detected → ip={ip}")
+        else:
+            ip = request.client.host if request.client else 'unknown'
+            logger.debug(f"[IDENTITY] Direct client IP → ip={ip}")
+
     api_key = request.headers.get('X-API-KEY')
 
     if api_key:
-        logger.debug(f"API key received")
+        logger.debug(f"[IDENTITY] API key received (masked) from ip={ip}")
+
         result = await db.execute(
-            select(APIKey).where(APIKey.key==api_key)
+            select(APIKey).where(APIKey.key == api_key)
         )
 
         api_key_obj = result.scalar_one_or_none()
 
         if api_key_obj:
-            logger.info(f"User identified: user_id={api_key_obj.user_id}")
+            logger.info(f"[IDENTITY] Authenticated user_id={api_key_obj.user_id} ip={ip}")
 
-            return Identity(
-                user_id = api_key_obj.user_id,
-                api_key = api_key,
+            identity = Identity(
+                user_id=api_key_obj.user_id,
+                api_key=api_key,
                 is_anonymous=False
             )
+
+            identity.ip_address = ip
+            return identity
+
         else:
-            logger.info("Invalid API key, falling back to anonymous")
-    
-    fingerprint = _generate_anonymous_fingerprint(request)
+            logger.warning(f"[IDENTITY] Invalid API key from ip={ip}, falling back to anonymous")
 
-    logger.debug(f"Anonymous user assigned id={fingerprint}")
+    # 🔹 Anonymous fallback
+    fingerprint = _generate_anonymous_fingerprint(ip)
 
-    return Identity(
-        user_id = fingerprint,
+    logger.debug(f"[IDENTITY] Anonymous fingerprint generated user_id={fingerprint} ip={ip}")
+
+    identity = Identity(
+        user_id=fingerprint,
         api_key=None,
         is_anonymous=True
     )
 
-def _generate_anonymous_fingerprint(request: Request) -> int:
-    ip = request.client.host if request.client else 'unknown'
+    identity.ip_address = ip
 
-    raw = ip  
+    logger.info(f"[IDENTITY] Anonymous identity assigned user_id={fingerprint} ip={ip}")
 
-    hashed = hashlib.sha256(raw.encode()).hexdigest()
+    return identity
 
-    return int(hashed[:16], 16)
+def _generate_anonymous_fingerprint(ip: str) -> int:
+    if not ip:
+        ip = "unknown"
+
+    hashed = hashlib.sha256(ip.encode()).hexdigest()
+
+    return int(hashed[:16], 16) % (2**63 - 1)
