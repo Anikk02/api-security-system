@@ -108,7 +108,7 @@ class StateManager:
             endpoints = []
 
             for d in data:
-                # 🔥 CRITICAL: skip invalid types
+                #  CRITICAL: skip invalid types
                 if isinstance(d, int):
                     continue
 
@@ -179,21 +179,21 @@ class StateManager:
 
         pipe = redis_client.pipeline()
 
-        # 🔹 timestamps
+        #  timestamps
         pipe.zadd(key_ts, {str(ts): ts})
         pipe.zremrangebyscore(key_ts, 0, ts - 300)   # ✅ sliding window cleanup
         pipe.expire(key_ts, 300)
 
-        # 🔹 endpoints
+        #  endpoints
         pipe.zadd(key_ep, {f"{ts}|{endpoint}":ts})
         pipe.zremrangebyscore(key_ep, 0,ts - 300)
         pipe.expire(key_ep, 300)
 
-        # 🔹 ip tracking
+        #  ip tracking
         pipe.sadd(key_ip, ip)
         pipe.expire(key_ip, 300)
 
-        # 🔴 USE status_code HERE
+        #  USE status_code
         if status_code and status_code >= 400:
             pipe.incr(key_err)
             pipe.expire(key_err, 300)

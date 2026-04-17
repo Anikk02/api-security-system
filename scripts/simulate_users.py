@@ -48,7 +48,7 @@ def random_headers(label):
 
 # USER TYPES
 
-# 🟢 NORMAL USER
+#  NORMAL USER
 async def normal_user():
     async with httpx.AsyncClient(base_url=BASE_URL, timeout=5) as client:
         for _ in range(random.randint(50, 150)):
@@ -63,7 +63,7 @@ async def normal_user():
             await asyncio.sleep(random.uniform(0.5, 2.0))
 
 
-# 🟡 SUSPICIOUS USER
+#  SUSPICIOUS USER
 async def suspicious_user():
     async with httpx.AsyncClient(base_url=BASE_URL, timeout=5) as client:
         for _ in range(random.randint(80, 200)):
@@ -78,7 +78,7 @@ async def suspicious_user():
             await asyncio.sleep(random.uniform(0.1, 0.4))
 
 
-# 🔴 BRUTE FORCE ATTACK
+#  BRUTE FORCE ATTACK
 async def brute_force_user():
     async with httpx.AsyncClient(base_url=BASE_URL, timeout=5) as client:
         for _ in range(random.randint(150, 300)):
@@ -94,7 +94,7 @@ async def brute_force_user():
             await asyncio.sleep(0.03)
 
 
-# 🔴 SCANNER
+#  SCANNER
 async def scanner_user():
     async with httpx.AsyncClient(base_url=BASE_URL, timeout=5) as client:
         for _ in range(random.randint(100, 250)):
@@ -109,7 +109,7 @@ async def scanner_user():
             await asyncio.sleep(0.05)
 
 
-# 🔴 SCRAPER
+#  SCRAPER
 async def scraper_user():
     async with httpx.AsyncClient(base_url=BASE_URL, timeout=5) as client:
         for _ in range(random.randint(150, 300)):
@@ -149,7 +149,7 @@ async def main():
 
     await asyncio.gather(*tasks)
 
-    print(f"\n✅ Simulation completed in {time.time() - start:.2f}s")
+    print(f"\nSimulation completed in {time.time() - start:.2f}s")
 
 
 if __name__ == "__main__":

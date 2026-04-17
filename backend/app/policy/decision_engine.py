@@ -22,11 +22,11 @@ async def evaluate_request(identity, signals, features=None):
         "contributions": {}
     }
 
-    # 1. Hard block check (keep this fast-path)
+    # 1. Hard block check
     if await StateManager.is_blocked(user_id):
         return 'block', 'User temporarily blocked', 1.0, ml_data
 
-    # 2. Rate limit check (ONLY signal, no punishment here)
+    # 2. Rate limit check (ONLY signal, no punishment)
     if await StateManager.is_rate_limited(user_id):
         base_action = 'throttle'
         base_reason = 'Rate limit exceeded'
@@ -56,7 +56,7 @@ async def evaluate_request(identity, signals, features=None):
         logger.error(f"Risk engine failed: {e}")
         risk_score = 0.0
 
-    # 5. Base decision (NO penalties, NO blocking here)
+    # 5. Base decision
 
     # Behavioral block signal
     if features.get('is_blocked'):
@@ -107,5 +107,5 @@ async def evaluate_request(identity, signals, features=None):
     except Exception as e:
         logger.error(f"Penalty manager failed: {e}")
 
-        # fallback (safe)
+        # fallback
         return base_action, base_reason, risk_score, ml_data

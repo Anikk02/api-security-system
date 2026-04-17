@@ -32,7 +32,7 @@ class RequestMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         start_time = time.time()
 
-        # ✅ Stable request UUID
+        # Stable request UUID
         request.state.request_uuid = str(uuid.uuid4())
 
         logger.info(
@@ -110,12 +110,11 @@ class RequestMiddleware(BaseHTTPMiddleware):
                 # NORMAL FLOW
                 response = await call_next(request)
 
-                # ✅ TRACK HERE (correct place)
                 await state_manager.track_request(
                     identity.user_id,
                     signals.endpoint,
                     signals.ip_address,
-                    response.status_code   # ✅ now available
+                    response.status_code  
                 )
 
                 if response.status_code >= 400:

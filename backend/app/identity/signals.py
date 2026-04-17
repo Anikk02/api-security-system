@@ -20,7 +20,7 @@ class RequestSignals:
         self.timestamp = timestamp
 
 async def extract_signals(request: Request) -> RequestSignals:
-    # ✅ FIX: Support X-Forwarded-For (for simulation + proxies)
+    # Support X-Forwarded-For (for simulation + proxies)
     forwarded_ip = request.headers.get("X-Forwarded-For")
 
     if forwarded_ip:

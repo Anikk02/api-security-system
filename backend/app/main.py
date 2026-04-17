@@ -108,7 +108,7 @@ async def debug():
 async def private():
     return {"secret": "sensitive data"}
 
-# Missing endpoints from NORMAL_ENDPOINTS
+#NORMAL_ENDPOINTS
 @app.get("/api/users/me")
 async def users_me():
     return {"id": 123, "username": "testuser"}
@@ -121,7 +121,7 @@ async def products():
 async def search(q: str = ""):
     return {"query": q, "results": []}
 
-# Missing endpoints from SENSITIVE_ENDPOINTS
+#SENSITIVE_ENDPOINTS
 @app.get("/admin/dashboard")
 async def admin_dashboard():
     return {"status": "admin dashboard"}
@@ -141,8 +141,6 @@ async def git_config():
 @app.get("/backup/db.sql")
 async def backup_db():
     return {"file": "database backup"}
-
-# Add these to your main FastAPI file
 
 # ============ ADDITIONAL NORMAL ENDPOINTS ============
 

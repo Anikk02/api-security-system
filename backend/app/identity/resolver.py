@@ -19,7 +19,7 @@ async def resolve_identity(request: Request, db: AsyncSession) -> Identity:
     
     TRUST_PROXY = True
     if TRUST_PROXY:
-        # ✅ Extract IP (single source of truth)
+        # Extract IP (single source of truth)
         forwarded_ip = request.headers.get("X-Forwarded-For")
 
         if forwarded_ip:
@@ -55,7 +55,7 @@ async def resolve_identity(request: Request, db: AsyncSession) -> Identity:
         else:
             logger.warning(f"[IDENTITY] Invalid API key from ip={ip}, falling back to anonymous")
 
-    # 🔹 Anonymous fallback
+    # Anonymous fallback
     fingerprint = _generate_anonymous_fingerprint(ip)
 
     logger.debug(f"[IDENTITY] Anonymous fingerprint generated user_id={fingerprint} ip={ip}")

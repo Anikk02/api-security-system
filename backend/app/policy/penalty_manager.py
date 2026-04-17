@@ -43,20 +43,20 @@ async def apply_penalty(identity, signals, risk_score: float, base_action: str):
         # Requests per IP (reuse timestamps logic via user_id OR create IP-based key)
         req_count = await StateManager.get_request_count(user_id, WINDOWS["short"])
 
-        # Errors (already tracked)
+        # Errors
         error_count = await StateManager.get_error_count(user_id, WINDOWS["medium"])
 
-        # Violations (already implemented)
+        # Violations
         violation_count = await StateManager.get_violations(user_id)
 
-        # 🔹 2. Reputation scores
+        #  2. Reputation scores
         ip_rep = await _get_reputation(f"rep:ip:{ip}")
         user_rep = await _get_reputation(f"rep:user:{user_id}")
         fp_rep = await _get_reputation(f"rep:fp:{fingerprint}")
 
         combined_rep = _combine_reputation(ip_rep, user_rep, fp_rep)
 
-        # 🔹 3. Dynamic risk boost
+        #  3. Dynamic risk boost
         adjusted_risk = min(
             risk_score * 0.6
             + combined_rep * 0.2
@@ -65,21 +65,21 @@ async def apply_penalty(identity, signals, risk_score: float, base_action: str):
             1.0
         )
 
-        # 🔹 4. Hard rules (fast path)
+        #  4. Hard rules (fast path)
         if combined_rep > 0.9:
             await _block(ip, user_id, "hard")
             return "block", "High reputation threat", _meta(adjusted_risk, combined_rep)
 
-        # 🔹 5. Escalation logic
+        #  5. Escalation logic
 
-        # 🔴 HARD BLOCK
+        #  HARD BLOCK
         if adjusted_risk > 0.85:
             await _increase_reputation(ip, user_id, fingerprint, 0.2)
             await _block(ip, user_id, "hard")
 
             return "block", "Severe malicious activity", _meta(adjusted_risk, combined_rep)
 
-        # 🔴 MEDIUM BLOCK
+        #  MEDIUM BLOCK
         if adjusted_risk > 0.7:
             await _increase_reputation(ip, user_id, fingerprint, 0.1)
 
@@ -89,12 +89,12 @@ async def apply_penalty(identity, signals, risk_score: float, base_action: str):
 
             return "throttle", "High risk traffic", _meta(adjusted_risk, combined_rep)
 
-        # 🟡 THROTTLE
+        #  THROTTLE
         if adjusted_risk > 0.5:
             await _increase_reputation(ip, user_id, fingerprint, 0.05)
             return "throttle", "Suspicious activity", _meta(adjusted_risk, combined_rep)
 
-        # 🟢 SAFE
+        #  SAFE
         await _decay_reputation(ip, user_id, fingerprint)
         return base_action, "Normal traffic", _meta(adjusted_risk, combined_rep)
 

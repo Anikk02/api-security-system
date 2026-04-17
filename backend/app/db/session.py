@@ -10,7 +10,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     raise ValueError("DATABASE_URL is not set")
 
-# 🔥 Concurrency control
+# Concurrency control
 DB_CONCURRENCY_LIMIT = 100
 db_semaphore = asyncio.Semaphore(DB_CONCURRENCY_LIMIT)
 
