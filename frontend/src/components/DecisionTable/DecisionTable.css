@@ -1,0 +1,156 @@
+.decision-table {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.decision-table__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-lg);
+  flex-wrap: wrap;
+  gap: var(--spacing-md);
+}
+
+.decision-table__title {
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.decision-table__controls {
+  display: flex;
+  gap: var(--spacing-md);
+}
+
+.decision-table__search {
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+}
+
+.decision-table__search:focus {
+  outline: none;
+  border-color: var(--accent-info);
+}
+
+.decision-table__filter {
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.decision-table__table-wrapper {
+  overflow-x: auto;
+}
+
+.decision-table__table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.decision-table__table th,
+.decision-table__table td {
+  padding: var(--spacing-md);
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.decision-table__table th {
+  color: var(--text-secondary);
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+
+.decision-table__user-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.decision-table__user-icon {
+  color: var(--accent-warning);
+}
+
+.decision-table__score {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.decision-table__score-bar {
+  width: 80px;
+  height: 6px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.decision-table__score-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-warning), var(--accent-danger));
+  transition: width var(--transition-normal);
+}
+
+.risk-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.risk-badge--low {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--accent-success);
+}
+
+.risk-badge--medium {
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--accent-warning);
+}
+
+.risk-badge--high {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--accent-danger);
+}
+
+.risk-badge--critical {
+  background: rgba(127, 29, 29, 0.5);
+  color: #fca5a5;
+}
+
+.decision-table__action-btn {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  transition: var(--transition-fast);
+}
+
+.decision-table__action-btn:hover {
+  color: var(--accent-info);
+  background: var(--bg-card);
+}
+
+@media (max-width: 768px) {
+  .decision-table__header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .decision-table__controls {
+    flex-direction: column;
+  }
+  
+  .decision-table__table th,
+  .decision-table__table td {
+    padding: var(--spacing-sm);
+    font-size: 0.875rem;
+  }
+}
