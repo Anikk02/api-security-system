@@ -13,7 +13,11 @@ async def evaluate_request(identity, signals, features=None):
     risk_score: float
     ml_data: dict | None
     '''
-
+    
+     # ============ DASHBOARD BYPASS ============
+    # Skip ALL security checks for dashboard and health endpoints
+    if signals.endpoint.startswith("/api/dashboard") or signals.endpoint == "/health":
+        return 'allow', 'Dashboard bypass', 0.0, {}
     user_id = identity.user_id
 
     ml_data = {
