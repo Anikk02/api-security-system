@@ -1,13 +1,23 @@
 import logging
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
+from app.core.config import settings
 from app.core.logging import setup_logging
 from app.middleware.request_middleware import RequestMiddleware
 from app.db.base import Base
 from app.db.session import engine
+from app.websocket.manager import websocket_manager
 
-from app.db.models import user, api_key, request_log, decision_log
+# Import all models to ensure they're created
+from app.db.models import (
+    user, api_key, request_log, decision_log, 
+    feature_log, ml_prediction, feedback
+)
+
+# Import API routes
+from app.api.routes import dashboard
 
 
 #Setup logging
@@ -31,13 +41,42 @@ async def lifespan(app: FastAPI):
 
 #Create app
 app = FastAPI(
-    title = "AI-Powered API Security System",
-    version = "1.0.0",
-    lifespan = lifespan
+    title=settings.APP_NAME,
+    version=settings.APP_VERSION,
+    lifespan=lifespan
 )
+
+# CORS middleware (for frontend)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=3600, #Cache preflight requests for 1 hour
+)
+
+# Include API routes
+app.include_router(dashboard.router)
 
 #Add middleware
 app.add_middleware(RequestMiddleware)
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket_manager.connect(websocket)
+    try:
+        while True:
+            # Keep connection alive and listen for client messages
+            data = await websocket.receive_text()
+            # Handle client messages if needed
+            if data == "ping":
+                await websocket.send_text("pong")
+    except WebSocketDisconnect:
+        websocket_manager.disconnect(websocket)
+
 
 #Test endpoint
 @app.get('/api/test')
