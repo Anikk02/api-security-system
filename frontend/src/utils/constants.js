@@ -30,3 +30,10 @@ export const CHART_CONFIG = {
     padding: '8px 12px'
   }
 };
+
+// Timeframes for traffic data
+export const TIMEFRAMES = {
+  FIFTEEN_MIN: '15m',
+  ONE_HOUR: '1h',
+  TWENTY_FOUR_HOUR: '24h'
+};

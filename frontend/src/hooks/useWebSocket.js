@@ -8,9 +8,11 @@ export const useWebSocket = (eventTypes = []) => {
 
   useEffect(() => {
     const handleConnected = () => setIsConnected(true);
+    const handleDisconnected = () => setIsConnected(false);
     const handleError = (err) => setError(err);
     
     websocketService.on('connected', handleConnected);
+    websocketService.on('disconnected', handleDisconnected);
     websocketService.on('error', handleError);
     
     eventTypes.forEach(eventType => {
@@ -24,12 +26,14 @@ export const useWebSocket = (eventTypes = []) => {
     
     return () => {
       websocketService.off('connected', handleConnected);
+      websocketService.off('disconnected', handleDisconnected);
       websocketService.off('error', handleError);
       eventTypes.forEach(eventType => {
         websocketService.off(eventType, () => {});
       });
+      websocketService.disconnect();
     };
-  }, [eventTypes]);
+  }, [eventTypes.join(',')]);
 
   const send = useCallback((type, payload) => {
     websocketService.send(type, payload);

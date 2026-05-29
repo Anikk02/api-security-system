@@ -1,33 +1,48 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
-export const useRealtime = (fetchFunction, interval = 5000) => {
+export const useRealtime = (fetchFunction, interval = 5000, options = {}) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const intervalRef = useRef(null);
+  const isMounted = useRef(true);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const result = await fetchFunction();
-      setData(result);
-      setError(null);
+      if (isMounted.current) {
+        setData(result);
+        setError(null);
+        setLoading(false);
+      }
     } catch (err) {
-      setError(err);
-    } finally {
-      setLoading(false);
+      if (isMounted.current) {
+        setError(err);
+        setLoading(false);
+      }
     }
-  };
+  }, [fetchFunction]);
 
   useEffect(() => {
+    isMounted.current = true;
+    
     fetchData();
-    intervalRef.current = setInterval(fetchData, interval);
+    
+    if (interval > 0 && !options.disabled) {
+      intervalRef.current = setInterval(fetchData, interval);
+    }
     
     return () => {
+      isMounted.current = false;
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
     };
-  }, [fetchFunction, interval]);
+  }, [fetchData, interval, options.disabled]);
 
-  return { data, loading, error, refetch: fetchData };
+  const refetch = useCallback(() => {
+    fetchData();
+  }, [fetchData]);
+
+  return { data, loading, error, refetch };
 };

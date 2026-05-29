@@ -24,70 +24,158 @@ import {
 } from 'recharts';
 import { TrendingUp, TrendingDown, Shield, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
 import { CHART_CONFIG, RISK_LEVELS, RISK_COLORS } from '../../utils/constants';
+import { dashboardService } from '../../services/dashboardService';
 import './RiskChart.css';
 
 const RiskChart = ({ 
-  data, 
   type = 'pie', 
   title = 'Risk Distribution',
   height = 300,
   showLegend = true,
   showTooltip = true,
-  animated = true 
+  animated = true,
+  refreshInterval = 30000  // Auto-refresh every 30 seconds
 }) => {
   const [chartData, setChartData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [riskMetrics, setRiskMetrics] = useState(null);
 
-  // Default mock data if none provided
-  const defaultData = [
-    { name: 'Low Risk', value: 54, color: RISK_COLORS[RISK_LEVELS.LOW], count: 1243, percentage: 54 },
-    { name: 'Medium Risk', value: 28, color: RISK_COLORS[RISK_LEVELS.MEDIUM], count: 645, percentage: 28 },
-    { name: 'High Risk', value: 12, color: RISK_COLORS[RISK_LEVELS.HIGH], count: 276, percentage: 12 },
-    { name: 'Critical', value: 6, color: RISK_COLORS[RISK_LEVELS.CRITICAL], count: 138, percentage: 6 }
-  ];
-
-  // Time series data for line/area charts
-  const timeSeriesData = [
-    { time: '00:00', low: 45, medium: 22, high: 8, critical: 3, total: 78 },
-    { time: '02:00', low: 38, medium: 18, high: 6, critical: 2, total: 64 },
-    { time: '04:00', low: 32, medium: 15, high: 5, critical: 2, total: 54 },
-    { time: '06:00', low: 48, medium: 25, high: 10, critical: 4, total: 87 },
-    { time: '08:00', low: 78, medium: 42, high: 18, critical: 8, total: 146 },
-    { time: '10:00', low: 95, medium: 58, high: 28, critical: 12, total: 193 },
-    { time: '12:00', low: 88, medium: 52, high: 24, critical: 10, total: 174 },
-    { time: '14:00', low: 92, medium: 55, high: 26, critical: 11, total: 184 },
-    { time: '16:00', low: 85, medium: 48, high: 22, critical: 9, total: 164 },
-    { time: '18:00', low: 72, medium: 38, high: 16, critical: 7, total: 133 },
-    { time: '20:00', low: 62, medium: 32, high: 14, critical: 6, total: 114 },
-    { time: '22:00', low: 52, medium: 26, high: 10, critical: 4, total: 92 }
-  ];
-
-  // Radar data for risk metrics
-  const radarData = [
-    { subject: 'Request Rate', value: 85, fullMark: 100 },
-    { subject: 'Anomaly Score', value: 72, fullMark: 100 },
-    { subject: 'IP Reputation', value: 68, fullMark: 100 },
-    { subject: 'Pattern Match', value: 45, fullMark: 100 },
-    { subject: 'Behavior Score', value: 58, fullMark: 100 },
-    { subject: 'Geo Location', value: 32, fullMark: 100 }
-  ];
-
-  // Radial bar data
-  const radialData = [
-    { name: 'Critical', value: 6, fill: RISK_COLORS[RISK_LEVELS.CRITICAL] },
-    { name: 'High', value: 12, fill: RISK_COLORS[RISK_LEVELS.HIGH] },
-    { name: 'Medium', value: 28, fill: RISK_COLORS[RISK_LEVELS.MEDIUM] },
-    { name: 'Low', value: 54, fill: RISK_COLORS[RISK_LEVELS.LOW] }
-  ];
-
-  useEffect(() => {
-    if (data && data.length > 0) {
-      setChartData(data);
-    } else {
-      setChartData(defaultData);
+  // Fetch real data from backend
+  const fetchRiskData = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch suspicious users to calculate risk distribution
+      const suspiciousUsers = await dashboardService.getSuspiciousUsers(50);
+      
+      // Calculate risk distribution from real data
+      const riskCounts = {
+        low: 0,
+        medium: 0,
+        high: 0,
+        critical: 0
+      };
+      
+      suspiciousUsers.forEach(user => {
+        const score = user.threatScore || 0;
+        if (score >= 0.9) {
+          riskCounts.critical++;
+        } else if (score >= 0.7) {
+          riskCounts.high++;
+        } else if (score >= 0.4) {
+          riskCounts.medium++;
+        } else {
+          riskCounts.low++;
+        }
+      });
+      
+      const total = suspiciousUsers.length || 1; // Avoid division by zero
+      
+      // Build real chart data
+      const realChartData = [
+        { 
+          name: 'Low Risk', 
+          value: Math.round((riskCounts.low / total) * 100),
+          color: RISK_COLORS[RISK_LEVELS.LOW], 
+          count: riskCounts.low,
+          percentage: Math.round((riskCounts.low / total) * 100)
+        },
+        { 
+          name: 'Medium Risk', 
+          value: Math.round((riskCounts.medium / total) * 100),
+          color: RISK_COLORS[RISK_LEVELS.MEDIUM], 
+          count: riskCounts.medium,
+          percentage: Math.round((riskCounts.medium / total) * 100)
+        },
+        { 
+          name: 'High Risk', 
+          value: Math.round((riskCounts.high / total) * 100),
+          color: RISK_COLORS[RISK_LEVELS.HIGH], 
+          count: riskCounts.high,
+          percentage: Math.round((riskCounts.high / total) * 100)
+        },
+        { 
+          name: 'Critical', 
+          value: Math.round((riskCounts.critical / total) * 100),
+          color: RISK_COLORS[RISK_LEVELS.CRITICAL], 
+          count: riskCounts.critical,
+          percentage: Math.round((riskCounts.critical / total) * 100)
+        }
+      ];
+      
+      setChartData(realChartData);
+      setRiskMetrics({
+        totalUsers: suspiciousUsers.length,
+        avgRiskScore: suspiciousUsers.reduce((sum, u) => sum + (u.threatScore || 0), 0) / total,
+        ...riskCounts
+      });
+      setError(null);
+      
+    } catch (err) {
+      console.error('Failed to fetch risk data:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-  }, [data]);
+  };
+
+  // Initial load
+  useEffect(() => {
+    fetchRiskData();
+  }, []);
+
+  // Auto-refresh
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchRiskData();
+    }, refreshInterval);
+    
+    return () => clearInterval(interval);
+  }, [refreshInterval]);
+
+  // Calculate time series from decision logs (mock for now, can be enhanced)
+  const getTimeSeriesData = () => {
+    // This would ideally come from /api/dashboard/traffic endpoint
+    // For now, use data from the traffic chart or return empty
+    return [
+      { time: '00:00', low: 45, medium: 22, high: 8, critical: 3, total: 78 },
+      { time: '02:00', low: 38, medium: 18, high: 6, critical: 2, total: 64 },
+      { time: '04:00', low: 32, medium: 15, high: 5, critical: 2, total: 54 },
+      { time: '06:00', low: 48, medium: 25, high: 10, critical: 4, total: 87 },
+      { time: '08:00', low: 78, medium: 42, high: 18, critical: 8, total: 146 },
+      { time: '10:00', low: 95, medium: 58, high: 28, critical: 12, total: 193 },
+      { time: '12:00', low: 88, medium: 52, high: 24, critical: 10, total: 174 },
+      { time: '14:00', low: 92, medium: 55, high: 26, critical: 11, total: 184 },
+      { time: '16:00', low: 85, medium: 48, high: 22, critical: 9, total: 164 },
+      { time: '18:00', low: 72, medium: 38, high: 16, critical: 7, total: 133 },
+      { time: '20:00', low: 62, medium: 32, high: 14, critical: 6, total: 114 },
+      { time: '22:00', low: 52, medium: 26, high: 10, critical: 4, total: 92 }
+    ];
+  };
+
+  // Calculate radar data from real metrics
+  const getRadarData = () => {
+    if (!riskMetrics) return [];
+    
+    return [
+      { subject: 'Low Risk Users', value: riskMetrics.low || 0, fullMark: 100 },
+      { subject: 'Medium Risk', value: riskMetrics.medium || 0, fullMark: 100 },
+      { subject: 'High Risk', value: riskMetrics.high || 0, fullMark: 100 },
+      { subject: 'Critical', value: riskMetrics.critical || 0, fullMark: 100 },
+      { subject: 'Avg Risk Score', value: Math.round((riskMetrics.avgRiskScore || 0) * 100), fullMark: 100 },
+      { subject: 'Total Threats', value: (riskMetrics.high || 0) + (riskMetrics.critical || 0), fullMark: 100 }
+    ];
+  };
+
+  // Get radial bar data from real chart data
+  const getRadialData = () => {
+    return chartData.map(item => ({
+      name: item.name,
+      value: item.value,
+      fill: item.color
+    }));
+  };
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
@@ -104,13 +192,10 @@ const RiskChart = ({
               <span className="risk-chart__tooltip-value">
                 {entry.value}
                 {entry.payload.percentage && '%'}
-                {entry.payload.count && ` (${entry.payload.count} requests)`}
+                {entry.payload.count && ` (${entry.payload.count} users)`}
               </span>
             </div>
           ))}
-          {payload[0].payload.timestamp && (
-            <p className="risk-chart__tooltip-time">{payload[0].payload.timestamp}</p>
-          )}
         </div>
       );
     }
@@ -158,7 +243,7 @@ const RiskChart = ({
 
   const renderBarChart = () => (
     <ResponsiveContainer width="100%" height={height}>
-      <BarChart data={timeSeriesData}>
+      <BarChart data={getTimeSeriesData()}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" />
         <XAxis dataKey="time" stroke="var(--text-secondary)" />
         <YAxis stroke="var(--text-secondary)" />
@@ -180,7 +265,7 @@ const RiskChart = ({
         innerRadius="20%" 
         outerRadius="80%" 
         barSize={20} 
-        data={radialData}
+        data={getRadialData()}
         startAngle={180}
         endAngle={0}
       >
@@ -206,7 +291,7 @@ const RiskChart = ({
 
   const renderRadarChart = () => (
     <ResponsiveContainer width="100%" height={height}>
-      <RadarChart cx="50%" cy="50%" outerRadius="80%" data={radarData}>
+      <RadarChart cx="50%" cy="50%" outerRadius="80%" data={getRadarData()}>
         <PolarGrid stroke="var(--border-color)" />
         <PolarAngleAxis dataKey="subject" stroke="var(--text-secondary)" tick={{ fill: 'var(--text-secondary)' }} />
         <PolarRadiusAxis angle={30} domain={[0, 100]} stroke="var(--text-secondary)" />
@@ -225,7 +310,7 @@ const RiskChart = ({
 
   const renderComposedChart = () => (
     <ResponsiveContainer width="100%" height={height}>
-      <ComposedChart data={timeSeriesData}>
+      <ComposedChart data={getTimeSeriesData()}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" />
         <XAxis dataKey="time" stroke="var(--text-secondary)" />
         <YAxis stroke="var(--text-secondary)" />
@@ -266,8 +351,8 @@ const RiskChart = ({
               }}
             />
           </div>
-          {item.count && (
-            <div className="risk-chart__stat-count">{item.count.toLocaleString()} requests</div>
+          {item.count !== undefined && (
+            <div className="risk-chart__stat-count">{item.count} users</div>
           )}
         </div>
       ))}
@@ -275,6 +360,25 @@ const RiskChart = ({
   );
 
   const renderChart = () => {
+    if (loading) {
+      return (
+        <div className="risk-chart__loading">
+          <div className="risk-chart__loading-spinner" />
+          <p>Loading risk data...</p>
+        </div>
+      );
+    }
+    
+    if (error) {
+      return (
+        <div className="risk-chart__error">
+          <AlertTriangle size={24} />
+          <p>Failed to load risk data</p>
+          <button onClick={fetchRiskData}>Retry</button>
+        </div>
+      );
+    }
+    
     switch(type) {
       case 'pie':
         return renderPieChart();
@@ -293,6 +397,12 @@ const RiskChart = ({
     }
   };
 
+  // Calculate trend from real data
+  const getHighRiskPercentage = () => {
+    const highRiskItem = chartData.find(d => d.name === 'High Risk');
+    return highRiskItem?.value || 0;
+  };
+
   return (
     <div className="risk-chart card">
       <div className="risk-chart__header">
@@ -303,23 +413,16 @@ const RiskChart = ({
         <div className="risk-chart__metrics">
           <div className="risk-chart__metric">
             <TrendingUp size={14} />
-            <span>+12% vs yesterday</span>
+            <span>High Risk: {getHighRiskPercentage()}%</span>
           </div>
           <div className="risk-chart__metric">
             <AlertTriangle size={14} />
-            <span>High Risk: {chartData.find(d => d.name === 'High Risk')?.value || 12}%</span>
+            <span>Critical: {chartData.find(d => d.name === 'Critical')?.value || 0}%</span>
           </div>
         </div>
       </div>
       <div className="risk-chart__content">
-        {loading ? (
-          <div className="risk-chart__loading">
-            <div className="risk-chart__loading-spinner" />
-            <p>Loading chart data...</p>
-          </div>
-        ) : (
-          renderChart()
-        )}
+        {renderChart()}
       </div>
     </div>
   );

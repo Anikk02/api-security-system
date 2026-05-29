@@ -17,10 +17,22 @@ class WebSocketService {
         console.log('WebSocket connected');
         this.reconnectAttempts = 0;
         this.emit('connected', { connected: true });
+        
+        // Send heartbeat to keep connection alive
+        this.heartbeatInterval = setInterval(() => {
+          if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send('ping');
+          }
+        }, 30000);
       };
       
       this.ws.onmessage = (event) => {
         try {
+          // Handle ping/pong responses
+          if (event.data === 'pong') {
+            return;
+          }
+          
           const data = JSON.parse(event.data);
           this.emit(data.type, data.payload);
         } catch (error) {
@@ -35,6 +47,9 @@ class WebSocketService {
       
       this.ws.onclose = () => {
         console.log('WebSocket disconnected');
+        if (this.heartbeatInterval) {
+          clearInterval(this.heartbeatInterval);
+        }
         this.attemptReconnect();
       };
     } catch (error) {
@@ -84,26 +99,10 @@ class WebSocketService {
     if (this.ws) {
       this.ws.close();
     }
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+    }
   }
 }
-// Add this method to periodically generate random violator locations
-export const startMockViolatorStream = (callback, interval = 10000) => {
-  const locations = ['New York', 'London', 'Tokyo', 'Shanghai', 'Mumbai', 'Sydney', 'Sao Paulo', 'Moscow', 'Berlin', 'Paris', 'Dubai', 'Singapore', 'Toronto', 'Mexico City', 'Johannesburg'];
-  const names = ['Scanner-X', 'Bot-Attack', 'Crawler-Pro', 'API-Abuser', 'DDoS-Source', 'Brute-Force', 'Spam-Bot', 'Data-Scraper'];
-  
-  return setInterval(() => {
-    const newViolator = {
-      id: `${names[Math.floor(Math.random() * names.length)]}-${Math.floor(Math.random() * 10000)}`,
-      location: locations[Math.floor(Math.random() * locations.length)],
-      threatScore: 0.5 + Math.random() * 0.5,
-      violations: Math.floor(Math.random() * 50) + 5,
-      status: Math.random() > 0.7 ? 'critical' : 'active',
-      ip: `192.168.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`,
-      lastSeen: new Date()
-    };
-    
-    callback(newViolator);
-  }, interval);
-};
 
 export default new WebSocketService();
