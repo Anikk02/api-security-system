@@ -1,0 +1,142 @@
+.logs {
+  width: 100%;
+}
+
+.logs__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-xl);
+  flex-wrap: wrap;
+  gap: var(--spacing-md);
+}
+
+.logs__title {
+  font-size: 1.875rem;
+  font-weight: 700;
+}
+
+.logs__controls {
+  display: flex;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+}
+
+.logs__search {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+}
+
+.logs__search input {
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  outline: none;
+}
+
+.logs__filter-btn,
+.logs__export-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  transition: var(--transition-fast);
+}
+
+.logs__filter-btn:hover,
+.logs__export-btn:hover {
+  border-color: var(--accent-info);
+}
+
+.logs__table-wrapper {
+  overflow-x: auto;
+}
+
+.logs__table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.logs__table th,
+.logs__table td {
+  padding: var(--spacing-md);
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.logs__table th {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.logs__score {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.logs__score-bar {
+  width: 60px;
+  height: 4px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.logs__score-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-warning), var(--accent-danger));
+}
+
+.logs__badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.logs__badge--allowed {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--accent-success);
+}
+
+.logs__badge--throttled {
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--accent-warning);
+}
+
+.logs__badge--blocked {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--accent-danger);
+}
+
+.logs__pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-xl);
+  padding: var(--spacing-md);
+}
+
+.logs__pagination button {
+  padding: var(--spacing-sm);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  transition: var(--transition-fast);
+}
+
+.logs__pagination button:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
