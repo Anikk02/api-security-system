@@ -2,118 +2,149 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-
 class Explainer:
     """
-    Generates explainable reasons for:
-    - risk score
-    - decision (allow / throttle / block)
+    Generates explainable insights for:
+    - Risk score
+    - Final action (allow / throttle / block)
 
     Output:
     {
-        "summary": str,
-        "factors": [str],
-        "feature_contributions": dict
+    "summary": str,
+    "factors": [str],
+    "feature_contributions": dict
     }
     """
 
-    @staticmethod
-    def generate(action, reason, risk_score, features: dict, ml_data=None):
-        try:
-            factors = []
-            contributions = {}
+@staticmethod
+def generate(action, reason, risk_score, features: dict, ml_data=None):
+    try:
+        factors = []
+        contributions = {}
 
-            # 1. BEHAVIORAL EXPLANATION
-            req_count = features.get("request_count_60s", 0)
-            burst = features.get("burst_ratio", 1.0)
+        # 1. RATE / VOLUME ANALYSIS
+        req_per_min = features.get("req_per_min", 0)
+        req_per_sec = features.get("req_per_sec", 0)
 
-            if req_count > 100:
-                factors.append("High request volume detected")
-                contributions["request_count_min"] = req_count
+        if req_per_min > 100:
+            factors.append("High request volume detected")
+            contributions["req_per_min"] = req_per_min
 
-            if burst > 3:
-                factors.append("Abnormal traffic burst pattern")
-                contributions["burst_ratio"] = burst
+        elif req_per_min > 50:
+            factors.append("Moderately high request rate")
+            contributions["req_per_min"] = req_per_min
 
-            # 2. PATTERN EXPLANATION
-            entropy = features.get("endpoint_entropy", 0)
-            repetition = features.get("repetition_score", 0)
+        # 2. BURST BEHAVIOR
+        burst_score = features.get("burst_score", 0)
 
-            if entropy > 2.5:
-                factors.append("Accessing many different endpoints (possible scanning)")
-                contributions["endpoint_entropy"] = entropy
+        if burst_score > 0.7:
+            factors.append("Abnormal traffic burst detected")
+            contributions["burst_score"] = burst_score
 
-            if repetition > 0.8:
-                factors.append("Highly repetitive requests (bot-like behavior)")
-                contributions["repetition_score"] = repetition
+        elif burst_score > 0.5:
+            factors.append("Traffic burst pattern observed")
+            contributions["burst_score"] = burst_score
 
-            # 3. ERROR BASED SIGNALS
-            error_rate = features.get("error_rate", 0)
+        # 3. ENDPOINT PATTERNS
+        entropy = features.get("endpoint_entropy", 0)
+        unique_endpoints = features.get("unique_endpoints", 0)
 
-            if error_rate > 0.5:
-                factors.append("High error rate (possible probing or broken client)")
-                contributions["error_rate"] = error_rate
+        if entropy > 0.7:
+            factors.append("High endpoint diversity (possible scanning)")
+            contributions["endpoint_entropy"] = entropy
 
-            # 4. IDENTITY INSTABILITY
-            ip_changes = features.get("ip_changes", 0)
+        elif entropy > 0.4:
+            factors.append("Moderate endpoint variation")
+            contributions["endpoint_entropy"] = entropy
 
-            if ip_changes > 5:
-                factors.append("Frequent IP changes detected")
-                contributions["ip_changes"] = ip_changes
+        if unique_endpoints > 20:
+            contributions["unique_endpoints"] = unique_endpoints
 
-            # 5. USER AGENT ANALYSIS
-            if features.get("is_bot"):
-                factors.append("Request identified as bot traffic")
+        # 4. ERROR BEHAVIOR
+        error_rate = features.get("error_rate", 0)
 
-            if features.get("is_browser"):
-                contributions["is_browser"] = 1
+        if error_rate > 0.5:
+            factors.append("High error rate (possible probing or broken client)")
+            contributions["error_rate"] = error_rate
 
-            # 6. TIMING PATTERNS
-            time_variance = features.get("time_variance", 0)
+        elif error_rate > 0.3:
+            factors.append("Elevated error responses observed")
+            contributions["error_rate"] = error_rate
 
-            if time_variance < 0.01 and req_count > 20:
-                factors.append("Highly regular request timing (automation suspected)")
-                contributions["time_variance"] = time_variance
+        # 5. USER AGENT ANALYSIS
+        if features.get("is_suspicious_ua"):
+            factors.append("Suspicious or automated user agent detected")
 
-            # 7. ML CONTRIBUTION
-            if ml_data:
-                ml_reason = ml_data.get("reason")
-                ml_score = ml_data.get("score")
+        if features.get("is_bot"):
+            factors.append("Bot-like traffic pattern identified")
 
-                if ml_reason:
-                    factors.append(f"ML model flagged: {ml_reason}")
+        # 6. IDENTITY INSTABILITY
+        ip_changes = features.get("ip_changes", 0)
 
-                if ml_score is not None:
-                    contributions["ml_score"] = ml_score
+        if ip_changes > 5:
+            factors.append("Frequent IP changes detected")
+            contributions["ip_changes"] = ip_changes
 
-            # 8. FALLBACK
-            if not factors:
-                factors.append("No significant anomalies detected")
+        # 7. TIME PATTERN ANALYSIS
+        time_variance = features.get("time_variance", 0)
+        regularity = features.get("request_regularity", 0)
 
-            # FINAL SUMMARY
-            summary = Explainer._build_summary(action, risk_score, factors)
+        if time_variance < 0.02 and req_per_min > 20:
+            factors.append("Highly regular request timing (automation suspected)")
+            contributions["time_variance"] = time_variance
 
-            return {
-                "summary": summary,
-                "factors": factors,
-                "feature_contributions": contributions
-            }
+        if regularity > 0.8:
+            factors.append("Consistent request intervals detected")
+            contributions["request_regularity"] = regularity
 
-        except Exception as e:
-            logger.error(f"Explainability failed: {e}")
+        # 8. ML SIGNALS (FROM RISK ENGINE)
+        if ml_data:
+            label = ml_data.get("label")
+            explanation = ml_data.get("explanation")
+            contributions_ml = ml_data.get("contributions", {})
 
-            return {
-                "summary": "Explanation unavailable",
-                "factors": [],
-                "feature_contributions": {}
-            }
+            if label == "high":
+                factors.append("ML model indicates high-risk behavior")
+            elif label == "medium":
+                factors.append("ML model indicates suspicious activity")
 
-    # HELPER: Summary Builder
-    @staticmethod
-    def _build_summary(action, risk_score, factors):
-        if action == "block":
-            return f"Request blocked due to high risk (score={risk_score})"
-        elif action == "throttle":
-            return f"Request throttled due to suspicious behavior (score={risk_score})"
-        else:
-            return f"Request allowed (score={risk_score})"
+            if explanation:
+                factors.append(f"ML insight: {explanation}")
+
+            if contributions_ml:
+                contributions.update(contributions_ml)
+
+        # 9. FALLBACK
+        if not factors:
+            factors.append("No significant anomalies detected")
+
+        # FINAL SUMMARY
+        summary = Explainer._build_summary(action, risk_score, reason)
+
+        return {
+            "summary": summary,
+            "factors": factors,
+            "feature_contributions": contributions
+        }
+
+    except Exception as e:
+        logger.error(f"Explainability failed: {e}")
+
+        return {
+            "summary": "Explanation unavailable",
+            "factors": [],
+            "feature_contributions": {}
+        }
+
+# SUMMARY BUILDER
+@staticmethod
+def _build_summary(action, risk_score, reason):
+    if action == "block":
+        return f"Request blocked due to high risk (score={risk_score}) - {reason}"
+
+    elif action == "throttle":
+        return f"Request throttled due to suspicious behavior (score={risk_score}) - {reason}"
+
+    else:
+        return f"Request allowed (score={risk_score}) - {reason}"
+
