@@ -360,7 +360,7 @@ async def get_decision_logs(
                 "summary": row[8] or row[7] or "No explanation",
                 "details": row[9] or {}
             },
-            created_at=row[8]
+            created_at=row[10]
         ))
 
     return logs
