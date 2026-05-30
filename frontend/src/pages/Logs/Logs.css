@@ -140,3 +140,78 @@
   background: var(--bg-tertiary);
   color: var(--text-primary);
 }
+
+.logs__explanation {
+  max-width: 300px;
+}
+
+.logs__explanation {
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Summary (main explanation) */
+.logs__summary {
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+/* Factors list (clean bullets) */
+.logs__factors {
+  margin: 4px 0;
+  padding-left: 16px;
+  list-style: none;
+}
+
+.logs__factors li {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-bottom: 2px;
+  position: relative;
+}
+
+.logs__factors li::before {
+  content: "⚠";
+  position: absolute;
+  left: -14px;
+  font-size: 0.7rem;
+  color: var(--accent-warning);
+}
+
+/* Feature contributions (small technical insight) */
+.logs__contributions {
+  margin-top: 4px;
+  padding: 6px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+
+.logs__contributions div {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.logs__contributions div:last-child {
+  margin-bottom: 0;
+}
+
+/* Optional toggle (if you later expand/collapse details) */
+.logs__toggle {
+  font-size: 0.7rem;
+  color: var(--accent-info);
+  cursor: pointer;
+  margin-top: 4px;
+  display: inline-block;
+}
+
+.logs__toggle:hover {
+  text-decoration: underline;
+}

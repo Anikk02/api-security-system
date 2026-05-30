@@ -360,3 +360,154 @@ button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* ============================= */
+/* USER ACTIVITY (FIXED UI)      */
+/* ============================= */
+
+.user-details__activity {
+  margin-top: var(--spacing-xl);
+}
+
+/* Title */
+.user-details__activity label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-md);
+}
+
+/* List spacing */
+.user-details__activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+/* ============================= */
+/* ACTIVITY CARD (IMPROVED)      */
+/* ============================= */
+
+.user-details__activity-item {
+  padding: 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+  transition: all 0.2s ease;
+}
+
+/* Hover = lift */
+.user-details__activity-item:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent-info);
+}
+
+/* ============================= */
+/* HEADER                        */
+/* ============================= */
+
+.user-details__activity-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+/* ============================= */
+/* BADGES (FIXED NAMING)         */
+/* ============================= */
+
+.badge {
+  font-size: 0.65rem;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+/* FIXED: matches API values */
+.badge--allow {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--accent-success);
+}
+
+.badge--throttle {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--accent-warning);
+}
+
+.badge--block {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--accent-danger);
+}
+
+/* ============================= */
+/* TIME                          */
+/* ============================= */
+
+.user-details__activity-time {
+  font-size: 0.7rem;
+  color: var(--text-tertiary);
+}
+
+/* ============================= */
+/* SUMMARY (KEY FIX)             */
+/* ============================= */
+
+.user-details__activity-summary {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1.4;
+  margin-bottom: 6px;
+}
+
+/* Hide useless "No explanation" */
+.user-details__activity-summary:empty,
+.user-details__activity-summary:contains("No explanation") {
+  display: none;
+}
+
+/* ============================= */
+/* FEATURE TAGS (CLEAN PILLS)    */
+/* ============================= */
+
+.user-details__activity-features {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.user-details__activity-features span {
+  font-size: 0.65rem;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--accent-info);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+}
+
+/* ============================= */
+/* RISK INTENSITY (STRONG FIX)   */
+/* ============================= */
+
+.user-details__activity-item.low-risk {
+  border-left: 4px solid var(--accent-success);
+  background: rgba(16, 185, 129, 0.06);
+}
+
+.user-details__activity-item.medium-risk {
+  border-left: 4px solid var(--accent-warning);
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.user-details__activity-item.high-risk {
+  border-left: 4px solid var(--accent-danger);
+  background: rgba(239, 68, 68, 0.12);
+}
+
+/* Strong visual for critical */
+.user-details__activity-item.high-risk:hover {
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.25);
+}

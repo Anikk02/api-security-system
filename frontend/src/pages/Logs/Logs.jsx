@@ -44,6 +44,31 @@ const Logs = () => {
     log.ip?.includes(searchTerm) ||
     log.endpoint?.includes(searchTerm)
   );
+
+  const formatFeature = (key) => {
+    return key
+    .replace(/ _/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+  };
+
+  const formatValue = (val) => {
+  if (val === null || val === undefined) return '-';
+
+  if (typeof val === 'number') {
+    // If it's a probability/score → show %
+    if (val >= 0 && val <= 1) {
+      return `${(val * 100).toFixed(0)}%`;
+    }
+    // Otherwise normal number
+    return val.toFixed(2);
+  }
+
+  if (typeof val === 'boolean') {
+    return val ? 'Yes' : 'No';
+  }
+
+  return String(val);
+  };
   
   return (
     <div className="logs">
@@ -102,7 +127,33 @@ const Logs = () => {
                     </div>
                   </td>
                   <td>{getActionBadge(log.action)}</td>
-                  <td className="logs__explanation">{log.explanation}</td>
+                  <td className="logs__explanation">
+                    <div className="logs__summary">
+                      {log.explanation?.summary || log.explanation || "No explanation"}
+                    </div>
+
+                    {/*Factors*/}
+                    {log.explanation?.details?.factors?.length > 0 && (
+                      <ul className="logs__factors">
+                        {log.explanation.details.factors.slice(0, 2).map((factor, i) => (
+                          <li key={i}>⚠ {factor}</li>
+                        ))}
+                      </ul>
+                    )}
+
+                    {/*contributions (only top 2, readable */}
+                    {log.explanation?.details?.feature_contributions && (
+                      <div className="logs__contributions">
+                        {Object.entries(log.explanation.details.feature_contributions)
+                        .slice(0, 2)
+                        .map(([key, val]) => (
+                          <span key={key}>
+                            {formatFeature(key)}:{formatValue(val)}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

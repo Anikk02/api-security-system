@@ -19,7 +19,11 @@ export const userService = {
       currentRiskScore: response.current_risk_score,
       isBlocked: response.is_blocked,
       recentActions: response.recent_actions,
-      ipHistory: response.ip_history
+      ipHistory: response.ip_history,
+
+      explanation: response.explanation?.summary || null,
+      explanationDetails: response.explanation?.details || {},
+      signals: response.signals || {}
     };
   },
   

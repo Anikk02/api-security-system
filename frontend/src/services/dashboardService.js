@@ -46,7 +46,7 @@ const mapLog = (log) => ({
   ip: log.ip_address,
   action: log.action,
   riskScore: log.risk_score,
-  explanation: log.explanation,
+  explanation: log.explanation || null,
   timestamp: new Date(log.created_at)
 });
 
@@ -133,24 +133,4 @@ export const dashboardService = {
       return 0;
     }
   },
-  
-  // Get user details
-  getUserDetails: async (userId) => {
-    try {
-      const response = await api.get(`/api/dashboard/user/${userId}`);
-      return {
-        userId: response.user_id,
-        isAnonymous: response.is_anonymous,
-        totalRequests: response.total_requests,
-        violations: response.violations,
-        currentRiskScore: response.current_risk_score,
-        isBlocked: response.is_blocked,
-        recentActions: response.recent_actions,
-        ipHistory: response.ip_history
-      };
-    } catch (error) {
-      console.error('Failed to fetch user details:', error);
-      return null;
-    }
-  }
 };
