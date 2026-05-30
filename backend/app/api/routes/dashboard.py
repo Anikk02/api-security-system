@@ -336,6 +336,8 @@ async def get_decision_logs(
             DecisionLog.action,
             DecisionLog.risk_score,
             DecisionLog.reason,
+            DecisionLog.explanation,
+            DecisionLog.explanation_json,
             DecisionLog.created_at
         )
         .join(RequestLog, DecisionLog.request_id == RequestLog.id)
@@ -354,7 +356,10 @@ async def get_decision_logs(
             ip_address=row[4] or 'unknown',
             action=row[5],
             risk_score=round(row[6], 2) if row[6] else 0,
-            explanation=row[7] or "No explanation",
+            explanation= {
+                "summary": row[8] or row[7] or "No explanation",
+                "details": row[9] or {}
+            },
             created_at=row[8]
         ))
 
