@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 class DashboardStatsResponse(BaseModel):
     requests_per_second: float
@@ -45,7 +45,7 @@ class LogResponse(BaseModel):
     ip_address: str
     action: str
     risk_score: float
-    explanation: str
+    explanation: Dict[str, Any]
     created_at: datetime
 
 class UserDetailsResponse(BaseModel):
