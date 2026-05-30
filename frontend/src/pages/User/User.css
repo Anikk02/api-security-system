@@ -312,7 +312,7 @@
   }
 }
 
-/* Status for critical (add to existing status styles) */
+/* Status for critical*/
 .user-card__status--critical {
   background: rgba(127, 29, 29, 0.5);
   color: #fca5a5;
@@ -361,9 +361,7 @@ button:disabled {
   cursor: not-allowed;
 }
 
-/* ============================= */
-/* USER ACTIVITY (FIXED UI)      */
-/* ============================= */
+/* USER ACTIVITY  */
 
 .user-details__activity {
   margin-top: var(--spacing-xl);
@@ -384,9 +382,7 @@ button:disabled {
   gap: var(--spacing-md);
 }
 
-/* ============================= */
-/* ACTIVITY CARD (IMPROVED)      */
-/* ============================= */
+/* ACTIVITY CARD    */
 
 .user-details__activity-item {
   padding: 12px;
@@ -402,9 +398,7 @@ button:disabled {
   border-color: var(--accent-info);
 }
 
-/* ============================= */
 /* HEADER                        */
-/* ============================= */
 
 .user-details__activity-header {
   display: flex;
@@ -413,9 +407,7 @@ button:disabled {
   margin-bottom: 6px;
 }
 
-/* ============================= */
-/* BADGES (FIXED NAMING)         */
-/* ============================= */
+/* BADGES   */
 
 .badge {
   font-size: 0.65rem;
@@ -441,18 +433,15 @@ button:disabled {
   color: var(--accent-danger);
 }
 
-/* ============================= */
-/* TIME                          */
-/* ============================= */
+
+/* TIME   */
 
 .user-details__activity-time {
   font-size: 0.7rem;
   color: var(--text-tertiary);
 }
 
-/* ============================= */
-/* SUMMARY (KEY FIX)             */
-/* ============================= */
+/* SUMMARY  */
 
 .user-details__activity-summary {
   font-size: 0.85rem;
@@ -468,9 +457,7 @@ button:disabled {
   display: none;
 }
 
-/* ============================= */
-/* FEATURE TAGS (CLEAN PILLS)    */
-/* ============================= */
+/* FEATURE TAGS    */
 
 .user-details__activity-features {
   display: flex;
@@ -488,9 +475,7 @@ button:disabled {
   border: 1px solid rgba(59, 130, 246, 0.25);
 }
 
-/* ============================= */
-/* RISK INTENSITY (STRONG FIX)   */
-/* ============================= */
+/* RISK INTENSITY  */
 
 .user-details__activity-item.low-risk {
   border-left: 4px solid var(--accent-success);
