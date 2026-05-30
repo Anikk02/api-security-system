@@ -160,7 +160,7 @@
   line-height: 1.4;
 }
 
-/* Factors list (clean bullets) */
+/* Factors list (bullets) */
 .logs__factors {
   margin: 4px 0;
   padding-left: 16px;
@@ -203,7 +203,7 @@
   margin-bottom: 0;
 }
 
-/* Optional toggle (if you later expand/collapse details) */
+/* Optional toggle*/
 .logs__toggle {
   font-size: 0.7rem;
   color: var(--accent-info);
