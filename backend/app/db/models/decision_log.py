@@ -25,8 +25,8 @@ class DecisionLog(Base):
 
     ground_truth_label = Column(String, nullable=True)
 
-    explanation = Column(Text)
+    explanation = Column(Text, nullable=True)
 
-    explanation_json = Column(JSONB)
+    explanation_json = Column(JSONB, nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
