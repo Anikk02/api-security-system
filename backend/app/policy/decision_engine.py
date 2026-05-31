@@ -24,7 +24,7 @@ async def evaluate_request(identity, signals, features=None):
 
     # 1. Hard block check
     if await StateManager.is_blocked(user_id):
-        return 'block', 'User temporarily blocked', 1.0, ml_data
+        return 'block', 'User temporarily blocked', 1.0, {}
 
     # 2. Rate limit check (ONLY signal, no punishment)
     if await StateManager.is_rate_limited(user_id):
@@ -39,6 +39,10 @@ async def evaluate_request(identity, signals, features=None):
         logger.warning("FeatureBuilder not used - fallback to minimal features")
         features = {
             "req_per_min": 0,
+            "burst_score": 0.0, #FIX: risk_engine defaulted to 1.0, adding +0.5 burst score
+            "unique_endpoints": None, #FIX: pattern_risk treated repetition as 1.0 (max bot score)
+            "endpoint_entropy": 0.0,
+            "is_suspicious_ua": False,
             "is_blocked": False
         }
 
