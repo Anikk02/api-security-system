@@ -57,11 +57,15 @@ async def apply_penalty(identity, signals, risk_score: float, base_action: str):
         combined_rep = _combine_reputation(ip_rep, user_rep, fp_rep)
 
         #  3. Dynamic risk boost
+        #ISSUE: old formula capped risk_score contribution at 60%,
+        #      pulling all users toward the same mid-range band regardless of actual behavioral differences.
+        #FIX : risk_score is dominant (0.7 weight);, reputation and volumne are additive boosts.
         adjusted_risk = min(
-            risk_score * 0.6
-            + combined_rep * 0.2
-            + min(req_count / 200, 0.1)
-            + min(error_count / 100, 0.1),
+            risk_score * 0.7
+            + combined_rep * 0.10
+            + min(violation_count / 20, 0.08) #FIX: violations were ignored in risk calc
+            + min(req_count / 200, 0.05)
+            + min(error_count / 100, 0.07),
             1.0
         )
 
