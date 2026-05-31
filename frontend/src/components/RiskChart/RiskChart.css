@@ -231,3 +231,27 @@
     font-size: 0.7rem;
   }
 }
+
+.risk-chart__error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-xl);
+  color: var(--accent-danger);
+  text-align: center;
+}
+
+.risk-chart__error button {
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.risk-chart__error button:hover {
+  border-color: var(--accent-info);
+}
