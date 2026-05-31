@@ -12,8 +12,8 @@ BASE_URL = "http://localhost:8000"
 # ============ CONFIGURATION ============
 DURATION_MINUTES = 30
 NORMAL_USERS_COUNT = 50
-SUSPICIOUS_USERS_COUNT = 3
-ATTACK_USERS_COUNT = 2
+SUSPICIOUS_USERS_COUNT = 10
+ATTACK_USERS_COUNT = 10
 
 # Large pool of IP addresses to simulate different users
 IP_POOL = [
