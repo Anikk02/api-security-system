@@ -1,9 +1,46 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, Shield, AlertTriangle, Clock, Ban, RefreshCw } from 'lucide-react';
+import { Search, Shield, AlertTriangle, Clock, Ban, RefreshCw, Copy, ChevronRight, Activity, List } from 'lucide-react';
 import { dashboardService } from '../../services/dashboardService';
 import { userService } from '../../services/userService';
 import toast from 'react-hot-toast';
 import './User.css';
+
+const getRiskLevel = (score) => {
+  if (score >= 0.7) return { label: 'HIGH RISK', cls: 'high' };
+  if (score >= 0.4) return { label: 'MEDIUM RISK', cls: 'medium' };
+  return { label: 'LOW RISK', cls: 'low' };
+};
+
+const getShieldColor = (cls) => {
+  if (cls === 'high') return '#ef4444';
+  if (cls === 'medium') return '#f59e0b';
+  return '#22c55e';
+};
+
+const getActionConfig = (action) => {
+  switch (action?.toLowerCase()) {
+    case 'allow':   return { color: '#22c55e', icon: '✓', bg: 'rgba(34,197,94,0.15)' };
+    case 'block':   return { color: '#ef4444', icon: '✕', bg: 'rgba(239,68,68,0.15)' };
+    case 'throttle':return { color: '#f59e0b', icon: '⏱', bg: 'rgba(245,158,11,0.15)' };
+    case 'detect':  return { color: '#f59e0b', icon: '⚠', bg: 'rgba(245,158,11,0.15)' };
+    default:        return { color: '#94a3b8', icon: '?', bg: 'rgba(148,163,184,0.15)' };
+  }
+};
+
+const getSmartFallback = (action) => {
+  switch (action?.action?.toLowerCase()) {
+    case 'allow':    return 'Request allowed';
+    case 'block':    return 'User blocked due to repeated violations';
+    case 'throttle': return 'Request rate exceeded threshold';
+    case 'detect':   return 'Suspicious pattern detected';
+    default:         return 'Suspicious activity detected';
+  }
+};
+
+const formatAction = (action) =>
+  action ? action.charAt(0).toUpperCase() + action.slice(1) : 'Unknown';
+
+const isUserBlocked = (user) => user?.isBlocked === true;
 
 const User = () => {
   const [selectedUser, setSelectedUser] = useState(null);
@@ -12,6 +49,7 @@ const User = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [blockingInProgress, setBlockingInProgress] = useState(false);
+  const [activityFilter, setActivityFilter] = useState('All Actions');
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -27,10 +65,7 @@ const User = () => {
     }
   }, []);
 
-  useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers]);
-
+  useEffect(() => { fetchUsers(); }, [fetchUsers]);
   useEffect(() => {
     const interval = setInterval(fetchUsers, 15000);
     return () => clearInterval(interval);
@@ -41,364 +76,343 @@ const User = () => {
     user.ip.includes(searchTerm)
   );
 
-  const getSmartFallback = (action) => {
-    switch (action.action) {
-      case 'allow':
-        return 'Request allowed — no anomaly detected';
-      case 'block':
-        return 'User blocked due to repeated violations';
-      case 'throttle':
-        return 'Rate limit triggered due to high request frequency';
-      case 'warn':
-        return 'Suspicious behavior detected — warning issued';
-      default:
-        return 'Suspicious activity detected';
-    }
-  };
-
-  const formatAction = (action) =>
-    action ? action.charAt(0).toUpperCase() + action.slice(1) : "Unknown";
-
-  const isUserBlocked = (user) => user?.isBlocked === true;
-
-  // ================= ACTIONS =================
-
   const handleBlockUser = async (user) => {
     if (blockingInProgress) return;
-
     const toastId = toast.loading(`Blocking ${user.id}...`);
     setBlockingInProgress(true);
-
     try {
       const userId = user.id.replace('user-', '');
-
-      const res = await fetch(`http://localhost:8000/api/dashboard/user/${userId}/block?duration=3600`, {
-        method: 'POST'
-      });
-
+      const res = await fetch(`http://localhost:8000/api/dashboard/user/${userId}/block?duration=3600`, { method: 'POST' });
       const result = await res.json();
-
       if (result.success) {
         toast.success(`${user.id} blocked`, { id: toastId });
         await fetchUsers();
         setSelectedUser(prev => ({ ...prev, isBlocked: true }));
-      } else {
-        toast.error(result.error, { id: toastId });
-      }
-    } catch {
-      toast.error('Block failed', { id: toastId });
-    } finally {
-      setBlockingInProgress(false);
-    }
+      } else { toast.error(result.error, { id: toastId }); }
+    } catch { toast.error('Block failed', { id: toastId }); }
+    finally { setBlockingInProgress(false); }
   };
 
   const handleUnblockUser = async (user) => {
     if (blockingInProgress) return;
-
     const toastId = toast.loading(`Unblocking ${user.id}...`);
     setBlockingInProgress(true);
-
     try {
       const userId = user.id.replace('user-', '');
-
-      const res = await fetch(`http://localhost:8000/api/dashboard/user/${userId}/unblock`, {
-        method: 'POST'
-      });
-
+      const res = await fetch(`http://localhost:8000/api/dashboard/user/${userId}/unblock`, { method: 'POST' });
       const result = await res.json();
-
       if (result.success) {
         toast.success(`${user.id} unblocked`, { id: toastId });
         await fetchUsers();
         setSelectedUser(prev => ({ ...prev, isBlocked: false }));
-      } else {
-        toast.error(result.error, { id: toastId });
-      }
-    } catch {
-      toast.error('Unblock failed', { id: toastId });
-    } finally {
-      setBlockingInProgress(false);
-    }
+      } else { toast.error(result.error, { id: toastId }); }
+    } catch { toast.error('Unblock failed', { id: toastId }); }
+    finally { setBlockingInProgress(false); }
   };
 
   const handleSendWarning = async (user) => {
     const toastId = toast.loading(`Sending warning...`);
-
     try {
       const userId = user.id.replace('user-', '');
-
       const res = await fetch(
-        `http://localhost:8000/api/dashboard/user/${userId}/warning?message=${encodeURIComponent(
-          "Suspicious API usage detected"
-        )}`,
+        `http://localhost:8000/api/dashboard/user/${userId}/warning?message=${encodeURIComponent("Suspicious API usage detected")}`,
         { method: 'POST' }
       );
-
       const result = await res.json();
-
-      if (result.success) {
-        toast.success('Warning sent', { id: toastId });
-      } else {
-        toast.error(result.error, { id: toastId });
-      }
-    } catch {
-      toast.error('Warning failed', { id: toastId });
-    }
+      if (result.success) { toast.success('Warning sent', { id: toastId }); }
+      else { toast.error(result.error, { id: toastId }); }
+    } catch { toast.error('Warning failed', { id: toastId }); }
   };
 
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text);
+    toast.success('Copied!');
+  };
+
+  const filteredActions = selectedUser?.recentActions?.filter(a => {
+    if (activityFilter === 'All Actions') return true;
+    return a.action?.toLowerCase() === activityFilter.toLowerCase();
+  }) || [];
+
   return (
-    <div className="user-page">
+    <div className="up">
 
-      <div className="user-page__header">
-        <h1>User Management</h1>
+      {/* LEFT PANEL */}
+      <div className="up__left">
+        <div className="up__search-wrap">
+          <Search size={15} className="up__search-icon" />
+          <input
+            className="up__search"
+            placeholder="Search users by ID or IP..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
 
-        <div className="user-page__controls">
-          <div className="user-page__search">
-            <Search size={18} />
-            <input
-              placeholder="Search..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
+        <div className="up__list">
+          {loading ? (
+            <div className="up__loading">
+              <div className="up__spinner" />
+              <span>Loading users...</span>
+            </div>
+          ) : filteredUsers.length === 0 ? (
+            <div className="up__empty">No users found</div>
+          ) : (
+            filteredUsers.map((user) => {
+              const score = user.threatScore || 0;
+              const risk = getRiskLevel(score);
+              const isSelected = selectedUser?.id === user.id;
 
-          <button onClick={fetchUsers} disabled={loading}>
-            <RefreshCw className={loading ? 'rotating' : ''} />
-          </button>
+              return (
+                <div
+                  key={user.id}
+                  className={`uc ${isSelected ? 'uc--active' : ''}`}
+                  onClick={async () => {
+                    try {
+                      const userId = user.id.replace('user-', '');
+                      const details = await userService.getUserDetails(userId);
+                      setSelectedUser({ ...user, ...details });
+                    } catch { toast.error('Failed to load user'); }
+                  }}
+                >
+                  <div className="uc__left">
+                    <div className={`uc__shield uc__shield--${risk.cls}`}>
+                      <Shield size={20} color={getShieldColor(risk.cls)} />
+                    </div>
+                    <div className="uc__info">
+                      <div className="uc__id">{user.id}</div>
+                      <div className="uc__ip">
+                        {user.ip}
+                        <button className="uc__copy" onClick={(e) => { e.stopPropagation(); copyToClipboard(user.ip); }}>
+                          <Copy size={11} />
+                        </button>
+                      </div>
+                      <div className={`uc__badge uc__badge--${risk.cls}`}>{risk.label}</div>
+                    </div>
+                  </div>
+
+                  <div className="uc__right">
+                    <div className="uc__stat">
+                      <AlertTriangle size={13} className={`uc__stat-icon uc__stat-icon--${risk.cls}`} />
+                      <span className={`uc__violations uc__violations--${risk.cls}`}>{user.violations} violations</span>
+                    </div>
+                    <div className="uc__stat">
+                      <span className="uc__score-label">Risk Score</span>
+                      <span className={`uc__score uc__score--${risk.cls}`}>
+                        {(score * 100).toFixed(0)}%
+                      </span>
+                    </div>
+                    <div className="uc__stat uc__stat--time">
+                      <Clock size={12} />
+                      <span>Last seen: {user.lastSeen ? new Date(user.lastSeen).toLocaleTimeString() : 'N/A'}</span>
+                    </div>
+                  </div>
+
+                  <ChevronRight size={16} className="uc__arrow" />
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
 
-      <div className="user-page__info">
-        <span>{lastUpdated.toLocaleTimeString()}</span>
-        <span>{users.length} users</span>
-      </div>
+      {/* RIGHT PANEL */}
+      {selectedUser ? (() => {
+        const score = selectedUser.currentRiskScore || selectedUser.threatScore || 0;
+        const risk = getRiskLevel(score);
 
-      <div className="user-page__content">
-
-        {/* USER LIST */}
-        <div className="user-page__list">
-          {loading ? (
-            <div className="user-page__loading">
-              <div className="user-page__loading-spinner"></div>
-              <p>Loading users...</p>
-            </div>
-          ) : filteredUsers.length === 0 ? (
-            <div className="user-page__empty">
-              <p>No users found</p>
-            </div>
-          ) : (
-            filteredUsers.map((user) => (
-              <div
-                key={user.id}
-                className={`user-card ${
-                  selectedUser?.id === user.id ? 'user-card--selected' : ''
-                }`}
-                onClick={async () => {
-                  try {
-                    const userId = user.id.replace('user-', '');
-                    const details = await userService.getUserDetails(userId);
-                    setSelectedUser({ ...user, ...details });
-                  } catch {
-                    toast.error('Failed to load user');
-                  }
-                }}
-              >
-                {/* HEADER */}
-                <div className="user-card__header">
-                  <div className="user-card__icon">
-                    <Shield size={18} />
-                  </div>
-
-                  <div className="user-card__info">
-                    <div className="user-card__id">{user.id}</div>
-                    <div className="user-card__ip">{user.ip}</div>
-                  </div>
-                </div>
-
-                {/* STATS */}
-                  <div className="user-card__stats">
-                    <div className="user-card__stat">
-                      <AlertTriangle size={14} />
-                      <span>{user.violations} violations</span>
-                    </div>
-
-                    <div className="user-card__stat">
-                      <Clock size={14} />
-                      <span>
-                        Score: {(user.threatScore * 100).toFixed(0)}%
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* STATUS */}
-                  <div
-                    className={`user-card__status user-card__status--${user.status}`}
-                  >
-                    {user.status}
-                  </div>
-                </div>
-              ))
-            )}
-      </div>
-
-        {/* USER DETAILS */}
-        {selectedUser && (
-          <div className="user-page__details">
-            <div className="user-details">
-              <h2 className="user-details__title">User Details</h2>
-
-              <div className="user-details__content">
-
-                <div className="user-details__field">
-                  <label>User ID</label>
-                  <p>{selectedUser.id}</p>
-                </div>
-
-                <div className="user-details__field">
-                  <label>IP Address</label>
-                  <p>{selectedUser.ip}</p>
-                </div>
-
-                <div className="user-details__field">
-                  <label>Total Requests</label>
-                  <p>{selectedUser.totalRequests || '-'}</p>
-                </div>
-
-                <div className="user-details__field">
-                  <label>Violations</label>
-                  <p>{selectedUser.violations}</p>
-                </div>
-
-                <div className="user-details__field">
-                  <label>Risk Score</label>
-                  <div className="user-details__score">
-                    <div className="user-details__score-bar">
-                      <div style={{ width: `${(selectedUser.currentRiskScore || 0) * 100}%` }} />
-                    </div>
-                    <span>{((selectedUser.currentRiskScore || 0) * 100).toFixed(0)}%</span>
-                  </div>
-                </div>
-
-                <div className="user-details__field">
-                  <label>Last Seen</label>
-                  <p>
-                    {selectedUser.lastSeen
-                      ? new Date(selectedUser.lastSeen).toLocaleString()
-                      : 'N/A'}
-                  </p>
-                </div>
-
-                {/* ✅ ACTION BUTTONS */}
-                <div className="user-details__actions">
-                  <button
-                    className="user-details__btn user-details__btn--warn"
-                    onClick={() => handleSendWarning(selectedUser)}
-                    disabled={blockingInProgress}
-                  >
-                    <AlertTriangle size={18} />
-                    Send Warning
-                  </button>
-
-                  {isUserBlocked(selectedUser) ? (
-                    <button
-                      className="user-details__btn user-details__btn--unblock"
-                      onClick={() => handleUnblockUser(selectedUser)}
-                      disabled={blockingInProgress}
-                    >
-                      <Ban size={18} />
-                      Unblock User
-                    </button>
-                  ) : (
-                    <button
-                      className="user-details__btn user-details__btn--block"
-                      onClick={() => handleBlockUser(selectedUser)}
-                      disabled={blockingInProgress}
-                    >
-                      <Ban size={18} />
-                      Block User
-                    </button>
-                  )}
-                </div>
-
-                {/* 🔥 IMPROVED RECENT ACTIVITY */}
-                {selectedUser.recentActions?.length > 0 && (
-                  <div className="user-details__activity">
-                    <div className="user-details__activity-header-main">
-                      <h3>Recent Activity</h3>
-                      <span className="activity-count">
-                        {selectedUser.recentActions.length} events
-                      </span>
-                    </div>
-
-                    <div className="user-details__activity-list">
-                      {selectedUser.recentActions.slice(0, 6).map((action, i) => {
-                        const risk = action.risk_score || action.riskScore || 0;
-
-                        return (
-                          <div
-                            key={i}
-                            className={`user-details__activity-item ${
-                              risk > 0.7
-                                ? 'high-risk'
-                                : risk > 0.4
-                                ? 'medium-risk'
-                                : 'low-risk'
-                            }`}
-                          >
-                            {/* TOP ROW */}
-                            <div className="activity-top">
-                              <span className={`badge badge--${action.action?.toLowerCase()}`}>
-                                {formatAction(action.action)}
-                              </span>
-
-                              <span className="activity-time">
-                                {new Date(action.timestamp).toLocaleTimeString()}
-                              </span>
-                            </div>
-
-                            {/* 🔥 MAIN INSIGHT */}
-                            <div className="activity-main">
-                              {action.explanation?.summary ||
-                                getSmartFallback(action)}
-                            </div>
-
-                            {/* 🔥 FEATURE SIGNALS */}
-                            {action.explanation?.details?.feature_contributions && (
-                              <div className="activity-features">
-                                {Object.entries(
-                                  action.explanation.details.feature_contributions
-                                )
-                                  .sort((a, b) => b[1] - a[1])
-                                  .slice(0, 3)
-                                  .map(([k, v]) => (
-                                    <span key={k}>
-                                      {k}: {v.toFixed(2)}
-                                    </span>
-                                  ))}
-                              </div>
-                            )}
-
-                            {/* 🔥 RISK BAR */}
-                            <div className="activity-risk">
-                              <div
-                                className="activity-risk-bar"
-                                style={{ width: `${risk * 100}%` }}
-                              />
-                              <span>{(risk * 100).toFixed(0)}%</span>
-                              </div>
-                            </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
+        return (
+          <div className="ud">
+            {/* Header */}
+            <div className="ud__header">
+              <h2 className="ud__title">User Details</h2>
+              <div className={`ud__risk-badge ud__risk-badge--${risk.cls}`}>
+                <span className="ud__risk-dot" />
+                {risk.label}
               </div>
             </div>
-          </div>
-        )}
 
-      </div>
+            {/* User identity */}
+            <div className="ud__identity">
+              <div className={`ud__avatar ud__avatar--${risk.cls}`}>
+                <Shield size={28} color={getShieldColor(risk.cls)} />
+              </div>
+              <div className="ud__identity-info">
+                <div className="ud__user-id">{selectedUser.id}</div>
+                <div className="ud__user-ip">
+                  {selectedUser.ip}
+                  <button className="uc__copy" onClick={() => copyToClipboard(selectedUser.ip)}>
+                    <Copy size={12} />
+                  </button>
+                </div>
+              </div>
+              <div className="ud__first-seen">
+                <span className="ud__fs-label">First seen</span>
+                <span className="ud__fs-value">
+                  {selectedUser.firstSeen
+                    ? new Date(selectedUser.firstSeen).toLocaleString()
+                    : 'Today, ' + new Date().toLocaleTimeString()}
+                </span>
+              </div>
+            </div>
+
+            {/* Stats grid */}
+            <div className="ud__stats">
+              <div className="ud__stat-card">
+                <div className="ud__stat-label">Total Requests</div>
+                <div className="ud__stat-value">{(selectedUser.totalRequests || 0).toLocaleString()}</div>
+              </div>
+              <div className="ud__stat-card">
+                <div className="ud__stat-label">Violations</div>
+                <div className="ud__stat-value">{selectedUser.violations}</div>
+              </div>
+              <div className="ud__stat-card">
+                <div className="ud__stat-label">Risk Score</div>
+                <div className={`ud__stat-value ud__stat-value--${risk.cls}`}>{(score * 100).toFixed(0)}%</div>
+                <div className="ud__risk-bar-track">
+                  <div className={`ud__risk-bar-fill ud__risk-bar-fill--${risk.cls}`} style={{ width: `${score * 100}%` }} />
+                </div>
+              </div>
+              <div className="ud__stat-card">
+                <div className="ud__stat-label">Status</div>
+                <div className={`ud__status ud__status--${(selectedUser.status || 'active').toLowerCase()}`}>
+                  {selectedUser.status || 'Suspicious'}
+                </div>
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div className="ud__actions">
+              <button
+                className="ud__btn ud__btn--warn"
+                onClick={() => handleSendWarning(selectedUser)}
+                disabled={blockingInProgress}
+              >
+                <AlertTriangle size={15} />
+                Send Warning
+              </button>
+
+              {isUserBlocked(selectedUser) ? (
+                <button
+                  className="ud__btn ud__btn--unblock"
+                  onClick={() => handleUnblockUser(selectedUser)}
+                  disabled={blockingInProgress}
+                >
+                  <Ban size={15} />
+                  Unblock User
+                </button>
+              ) : (
+                <button
+                  className="ud__btn ud__btn--block"
+                  onClick={() => handleBlockUser(selectedUser)}
+                  disabled={blockingInProgress}
+                >
+                  <Ban size={15} />
+                  Block User
+                </button>
+              )}
+            </div>
+
+            {/* Recent Activity */}
+            {selectedUser.recentActions?.length > 0 && (
+              <div className="ud__activity">
+                <div className="ud__activity-header">
+                  <h3 className="ud__activity-title">Recent Activity</h3>
+                  <div className="ud__activity-filter">
+                    <select
+                      value={activityFilter}
+                      onChange={(e) => setActivityFilter(e.target.value)}
+                      className="ud__filter-select"
+                    >
+                      <option>All Actions</option>
+                      <option>Allow</option>
+                      <option>Block</option>
+                      <option>Throttle</option>
+                      <option>Detect</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="ud__timeline">
+                  {filteredActions.slice(0, 6).map((action, i) => {
+                    const cfg = getActionConfig(action.action);
+                    const risk_score = action.risk_score || action.riskScore || 0;
+                    const riskDelta = risk_score > 0 ? `+${risk_score.toFixed(2)}` : '0.00';
+                    const isRiskIncrease = risk_score > 0;
+
+                    return (
+                      <div key={i} className="ud__tl-row">
+                        {/* Time */}
+                        <div className="ud__tl-time">
+                          {new Date(action.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+
+                        {/* Icon */}
+                        <div className="ud__tl-icon-wrap">
+                          <div className="ud__tl-line" />
+                          <div className="ud__tl-icon" style={{ background: cfg.bg, border: `1px solid ${cfg.color}` }}>
+                            {action.action?.toLowerCase() === 'allow' ? (
+                              <Shield size={14} color={cfg.color} />
+                            ) : (
+                              <AlertTriangle size={14} color={cfg.color} />
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Content */}
+                        <div className="ud__tl-content">
+                          <div className="ud__tl-top">
+                            <span className="ud__tl-action" style={{ color: cfg.color }}>
+                              {formatAction(action.action)}
+                            </span>
+                            {isRiskIncrease && (
+                              <span className="ud__tl-risk-tag">RISK INCREASED</span>
+                            )}
+                            <span className="ud__tl-delta" style={{ color: risk_score > 0 ? '#ef4444' : '#22c55e' }}>
+                              {riskDelta}
+                            </span>
+                          </div>
+
+                          <div className="ud__tl-summary">
+                            {action.explanation?.summary || getSmartFallback(action)}
+                          </div>
+
+                          {(action.explanation?.details || action.endpoint) && (
+                            <div className="ud__tl-meta">
+                              {action.endpoint && <span>Endpoint: {action.endpoint}</span>}
+                              {action.method && <><span className="ud__dot">•</span><span>Method: {action.method}</span></>}
+                              {action.statusCode && <><span className="ud__dot">•</span><span>Status: {action.statusCode}</span></>}
+                              {action.explanation?.details?.pattern && (
+                                <>
+                                  <span>Pattern: {action.explanation.details.pattern}</span>
+                                  {action.explanation.details.confidence && (
+                                    <><span className="ud__dot">•</span><span>Confidence: {action.explanation.details.confidence}</span></>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <button className="ud__view-log">
+                  <List size={14} />
+                  View Full Activity Log
+                </button>
+              </div>
+            )}
+
+          </div>
+        );
+      })() : (
+        <div className="ud ud--empty">
+          <Shield size={48} opacity={0.2} />
+          <p>Select a user to view details</p>
+        </div>
+      )}
     </div>
   );
 };
