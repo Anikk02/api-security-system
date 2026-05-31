@@ -1,6 +1,11 @@
 import math
 from collections import Counter
 
+# Theoretical max entropy based on expected endpoint space(tunable)
+MAX_ENDPOINT_ENTROPY = math.log2(50)
+
+# Minimum baseline req/sec before burst ratio is meaningful
+BURST_BASELINE_THRESHOLD = 0.1
 class FeatureBuilder:
 
     def __init__(self, state_manager):
@@ -22,30 +27,28 @@ class FeatureBuilder:
         if not isinstance(endpoints, list):
             endpoints = []
         unique_endpoints = len(set(endpoints)) if endpoints else 0
-
-        endpoint_entropy = self._calculate_entropy(endpoints)
-
-        # Normalize entropy (0–1)
-        max_entropy = math.log2(len(set(endpoints))) if endpoints and len(set(endpoints)) > 1 else 1
-        endpoint_entropy = endpoint_entropy / max_entropy if max_entropy > 0 else 0.0
+        
+        #Normalize against a fixed theoretical max, not the data's own max.
+        raw_entropy = self._calculate_entropy(endpoints)
+        endpoint_entropy = round(min(raw_entropy / MAX_ENDPOINT_ENTROPY, 1.0), 4)
 
         # ERROR ANALYSIS
         error_count = await self.state.get_error_count(user_id, window=60)
         total_requests = max(req_per_min, 1)
 
-        error_rate = (error_count + 1) / (total_requests + 5)
+        error_rate = round(error_count / total_requests, 4) # (error_count + 1) / (total_requests + 5) -> round(error_count / total_requests, 4)
 
         # BURST DETECTION
         avg_per_sec = req_per_min / 60 if req_per_min > 0 else 0
 
         # Proper burst ratio
-        if avg_per_sec > 0:
+        if avg_per_sec > BURST_BASELINE_THRESHOLD: # 0 -> 0.1
             burst_score = req_per_sec / avg_per_sec
         else:
             burst_score = 0.0
 
         # Normalize burst_score
-        burst_score = math.log1p(burst_score) / math.log1p(10) # scale factor (tunable)
+        burst_score = round(math.log1p(burst_score) / math.log1p(10), 4) # scale factor (tunable)
 
         # IP BEHAVIOR
         ip_changes = await self.state.get_ip_change_count(user_id, window=300)
