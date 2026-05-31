@@ -78,7 +78,7 @@ def _behavior_risk(features: dict) -> float:
     score = 0.0
 
     req_count = features.get('req_per_min', 0)
-    burst_ratio = features.get('burst_score', 1.0)
+    burst_ratio = features.get('burst_score', 0.0) #1.0 -> 0.0
 
     # High request volume
     if req_count > 50:
@@ -110,7 +110,11 @@ def _pattern_risk(features: dict) -> float:
     #derive repetition
     unique = features.get("unique_endpoints", 0)
     total = features.get("req_per_min", 1)
-    repetition = 1 - (unique / total) if total > 0 else 0
+    # Only compute repetition if we have real data; default to 0 (no repetition signal)
+    if unique is not None and total > 1:
+        repetition = 1 - (unique / total)
+    else:
+        repetition = 0.0
 
     # High entropy = scanning
     if entropy > 0.7:
