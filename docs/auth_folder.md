@@ -1,37 +1,39 @@
 # 🔐 Authentication & Onboarding System (TrianSec)
 
+---
+
 ## 📌 Overview
 
-This module handles:
+This module provides:
 
-* Client registration & login
-* JWT-based authentication
-* API key generation for SDK integration
-* Initial onboarding of new clients
+* Client authentication (JWT-based)
+* Password management (login + reset)
+* Client onboarding (API key generation)
+* API key management for SDK integration
 
-It is designed to work alongside the **TrianSec Security Engine**, keeping business logic separate from security logic.
-
----
-
-## 🧠 System Design Principles
-
-* **Separation of concerns**
-* **Stateless authentication (JWT)**
-* **API key-based SDK access**
-* **Fast onboarding (plug-and-play)**
+It integrates seamlessly with the **TrianSec Security Engine** without duplicating core infrastructure.
 
 ---
 
-## 🏗️ Architecture Flow
+## 🧠 Design Philosophy
+
+* Extend existing backend (no duplication)
+* Feature-based architecture
+* Separation of business logic & security engine
+* Plug-and-play onboarding
+
+---
+
+## 🏗️ System Architecture
 
 ```
-Client (User)
+User (Client)
    ↓
-Auth API (Register/Login)
+Auth API (Register/Login/Reset)
    ↓
-JWT Issued
+JWT Token
    ↓
-Client Dashboard Access
+Dashboard Access
 
 Client Backend
    ↓
@@ -39,82 +41,54 @@ triansec SDK
    ↓
 API Key
    ↓
-TrianSec Security Engine
+TrianSec Middleware
+   ↓
+Security Engine
 ```
 
 ---
 
-## 📁 Module Structure
+## 📁 Folder Structure
 
 ```
 app/
 │
-├── core/                          # Core system config
-│   ├── config.py
-│   ├── security.py                # JWT, hashing, auth helpers
-│   ├── dependencies.py            # Auth dependencies (get_current_user)
-│   └── constants.py
+├── authentication/
+│   ├── service.py        # register, login, reset password
+│   ├── password.py       # hashing & verification
+│   ├── token.py          # JWT + reset tokens
+│   └── routes.py         # /api/auth/*
 │
+├── client/
+│   ├── service.py
+│   ├── onboarding.py
+│   └── routes.py
+│
+├── api_keys/
+│   ├── service.py
+│   ├── validator.py
+│   └── routes.py
+│
+# ===== EXISTING ENGINE =====
+├── middleware/
+├── identity/
+├── features/
+├── risk/
+├── policy/
+├── state/
+├── explainability/
+├── websocket/
+# ==========================
+│
+├── core/
 ├── db/
-│   ├── session.py
 │   └── models/
-│       ├── client.py              # clients table
-│       ├── api_key.py             # api_keys table
-│       └── usage.py               # usage tracking (basic)
-│
-├── schemas/                       # Request/Response validation
-│   ├── auth.py
-│   ├── client.py
-│   ├── api_key.py
-│   └── usage.py
-│
-├── repositories/                  # DB access layer
-│   ├── client_repo.py
-│   ├── api_key_repo.py
-│   └── usage_repo.py
-│
-├── services/                      # Business logic (IMPORTANT)
-│   │
-│   ├── auth/
-│   │   ├── auth_service.py        # register, login
-│   │   ├── password_service.py
-│   │   ├── token_service.py       # JWT handling
-│   │   └── email_service.py       # optional (verification/reset)
-│   │
-│   ├── client/
-│   │   ├── client_service.py      # client CRUD
-│   │   ├── onboarding_service.py  # onboarding pipeline
-│   │   └── profile_service.py
-│   │
-│   ├── api_keys/
-│   │   ├── api_key_service.py     # create/revoke keys
-│   │   └── key_validator.py       # used by middleware
-│   │
-│   └── usage/
-│       └── usage_service.py       # track client usage (basic)
-│
-├── api/                           # FastAPI routes
-│   │
-│   ├── auth/
-│   │   └── routes.py              # /api/auth/*
-│   │
-│   ├── client/
-│   │   └── routes.py              # /api/client/*
-│   │
-│   ├── api_keys/
-│   │   └── routes.py
-│   │
-│   └── usage/
-│       └── routes.py
-│
-├── middleware/                    # Your existing system (keep as-is)
-│   └── request_middleware.py
-│
-├── utils/
-│   ├── logger.py
-│   ├── validators.py
-│   └── helpers.py
-│
+        |___client.py
+        |___api_key.py
+├── schemas/
+     |___ auth.py
+     |___ client.py
+     |___ api_key.py
 └── main.py
 ```
 
@@ -124,49 +98,85 @@ app/
 
 ### 1. Registration
 
-**Endpoint:**
+**Endpoint**
 
 ```
 POST /api/auth/register
 ```
 
-**Flow:**
+**Flow**
 
-1. Validate input (email, password)
+1. Validate input
 2. Hash password
-3. Create client record
-4. Trigger onboarding process
+3. Create client
+4. Trigger onboarding
 
 ---
 
 ### 2. Login
 
-**Endpoint:**
+**Endpoint**
 
 ```
 POST /api/auth/login
 ```
 
-**Flow:**
+**Flow**
 
 1. Verify email + password
-2. Generate JWT token
+2. Generate JWT
 3. Return access token
 
 ---
 
-### 3. JWT Token
+### 3. Forgot Password
 
-Used for:
+**Endpoint**
 
-* Dashboard authentication
-* Client identity verification
+```
+POST /api/auth/forgot-password
+```
 
-**Stored in:**
+**Flow**
+
+1. Accept email
+2. Generate short-lived reset token
+3. Return or send reset link
+
+**MVP Note**
+
+* Token can be returned in response or logged
+* Email service can be integrated later
+
+---
+
+### 4. Reset Password
+
+**Endpoint**
+
+```
+POST /api/auth/reset-password
+```
+
+**Flow**
+
+1. Verify reset token
+2. Hash new password
+3. Update password
+4. Invalidate token
+
+---
+
+### 5. JWT Usage
 
 ```
 Authorization: Bearer <token>
 ```
+
+Used for:
+
+* Dashboard authentication
+* Client identity
 
 ---
 
@@ -174,11 +184,11 @@ Authorization: Bearer <token>
 
 ### Purpose
 
-Automatically prepare a new client to start using TrianSec immediately.
+Enable instant usability after signup.
 
 ---
 
-### Onboarding Steps
+### Flow
 
 ```
 Register →
@@ -190,16 +200,16 @@ Return Credentials
 
 ---
 
-### Core Function
+### Core Logic
 
 ```python
 async def onboard_client(data):
     client = await create_client(data)
-    
+
     api_key = await create_api_key(client.id)
-    
+
     await initialize_usage(client.id)
-    
+
     return {
         "client": client,
         "api_key": api_key
@@ -214,11 +224,11 @@ async def onboard_client(data):
 
 * Authenticate client applications
 * Enable SDK integration
-* Track usage per client
+* Identify traffic in middleware
 
 ---
 
-### API Key Format
+### Format
 
 ```
 X-API-KEY: sk_live_xxxxxxxx
@@ -230,8 +240,8 @@ X-API-KEY: sk_live_xxxxxxxx
 
 | Action   | Description             |
 | -------- | ----------------------- |
-| Generate | Create new API key      |
-| Validate | Used in middleware      |
+| Generate | Create API key          |
+| Validate | Middleware validation   |
 | Revoke   | Disable compromised key |
 
 ---
@@ -243,14 +253,14 @@ Request →
 Extract API Key →
 Validate →
 Attach client_id →
-Proceed to security engine
+Pass to security engine
 ```
 
 ---
 
-## 🧾 Database Schema (Minimal)
+## 🧾 Database Schema
 
-### Clients Table
+### Clients
 
 ```
 id
@@ -262,7 +272,7 @@ created_at
 
 ---
 
-### API Keys Table
+### API Keys
 
 ```
 id
@@ -274,85 +284,76 @@ created_at
 
 ---
 
-### Usage Logs
-
-```
-client_id
-date
-request_count
-```
-
----
-
 ## 🔄 Integration with Security Engine
-
-After authentication:
 
 ```
 Client App →
 triansec SDK →
 API Key →
-Security Middleware →
-Your Existing System
+Middleware →
+Risk Engine →
+Policy Engine →
+Decision
 ```
 
 ---
 
 ## ⚡ Key Design Decisions
 
-### 1. Dual Identity Model
+### 1. Dual Identity System
 
-| Type    | Purpose            |
-| ------- | ------------------ |
-| JWT     | Client (dashboard) |
-| API Key | Application (SDK)  |
-
----
-
-### 2. Fast Middleware Access
-
-Middleware should:
-
-* Validate API key
-* Fetch client_id
-* Pass to security system
+| Type    | Purpose           |
+| ------- | ----------------- |
+| JWT     | User (dashboard)  |
+| API Key | Application (SDK) |
 
 ---
 
-### 3. Minimal Initial Scope
+### 2. No Duplicate Infrastructure
 
-For now, system includes:
+* Uses existing `core`, `db`, `middleware`
+* No separate app
+* No extra main.py
 
-* Authentication
-* Onboarding
-* API keys
-* Basic usage tracking
+---
 
-**Excluded:**
+### 3. Feature-Based Architecture
 
-* Billing
-* Subscriptions
-* Advanced analytics
+```
+auth/
+client/
+api_keys/
+```
 
 ---
 
 ## 🧠 Summary
 
-TrianSec Authentication & Onboarding provides:
+This system:
 
-* Seamless client onboarding
-* Secure authentication via JWT
-* Plug-and-play SDK integration via API keys
-* Clean separation from security logic
+* Integrates cleanly into your backend
+* Keeps security engine untouched
+* Enables SaaS layer (clients + dashboard)
+* Supports plug-and-play SDK usage
 
 ---
 
 ## 🚀 Next Steps
 
-* Build auth APIs
-* Implement onboarding_service
-* Integrate API key validation into middleware
+* Implement auth APIs
+* Implement onboarding flow
+* Integrate API key validator into middleware
 * Connect client dashboard
+
+---
+
+## 🔥 Final Principle
+
+```
+Security Engine = Brain  
+Authentication = Entry Layer  
+API Keys = Bridge to Client Systems  
+```
 
 ---
 
