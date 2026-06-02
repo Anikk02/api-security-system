@@ -1,4 +1,4 @@
-# 🛡️ TrianSec – Intelligent API Security Platform
+# 🛡️ TriAnSec – Intelligent API Security Platform
 
 An advanced **behavior-based API protection platform** that provides **real-time threat detection, adaptive enforcement, and seamless SDK integration**.
 
@@ -6,7 +6,7 @@ An advanced **behavior-based API protection platform** that provides **real-time
 
 ## 🚀 Overview
 
-TrianSec is not just a middleware — it is a **complete API security platform** consisting of:
+TriAnSec is not just a middleware — it is a **complete API security platform** consisting of:
 
 * 🔐 Authentication & onboarding system
 * 🔑 API key-based integration
@@ -24,7 +24,7 @@ TrianSec is not just a middleware — it is a **complete API security platform**
 
 ## 💡 Solution
 
-TrianSec introduces a **plug-and-play security layer**:
+TriAnSec introduces a **plug-and-play security layer**:
 
 ```text
 Client App → TrianSec SDK → Security Engine → Decision → Response
@@ -44,7 +44,7 @@ With a **complete ecosystem**:
 ```text
 Client App
    ↓
-TrianSec SDK (Python Library)
+TriAnSec SDK (Python Library)
    ↓
 API Key Authentication
    ↓
