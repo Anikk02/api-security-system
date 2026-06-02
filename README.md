@@ -1,119 +1,267 @@
-# 🛡️ AI-Powered API Security System
+# 🛡️ TrianSec – Intelligent API Security Platform
 
-An intelligent, behavior-based API protection system that detects and mitigates abuse using machine learning, adaptive policies, and real-time decision making.
+An advanced **behavior-based API protection platform** that provides **real-time threat detection, adaptive enforcement, and seamless SDK integration**.
 
 ---
 
 ## 🚀 Overview
 
-Traditional API security relies on **static rules** (e.g., fixed rate limits), which fail against modern, adaptive attacks.
+TrianSec is not just a middleware — it is a **complete API security platform** consisting of:
 
-This project introduces an **AI-driven middleware layer** that:
-
-* Learns user behavior
-* Detects anomalies in real-time
-* Applies **adaptive, time-bound enforcement**
-* Provides **explainable decisions**
-* Continuously improves via **self-learning**
+* 🔐 Authentication & onboarding system
+* 🔑 API key-based integration
+* 🧠 Behavior-based security engine
+* 📊 Client & admin dashboards
+* 📦 Python SDK for plug-and-play usage
 
 ---
 
 ## 🎯 Problem Statement
 
-> APIs are increasingly vulnerable to abuse such as bot traffic, scraping, and brute-force attacks. Static rule-based systems cannot adapt to evolving attack patterns.
+> APIs are vulnerable to abuse such as bot traffic, scraping, and brute-force attacks. Traditional systems rely on static rules and lack visibility, adaptability, and integration simplicity.
 
 ---
 
 ## 💡 Solution
 
-This system adds an **intelligent decision layer** between clients and backend APIs:
+TrianSec introduces a **plug-and-play security layer**:
 
 ```text
-Client → Identity Layer → Feature Engine → ML Model → Policy Engine → Response
+Client App → TrianSec SDK → Security Engine → Decision → Response
+```
+
+With a **complete ecosystem**:
+
+* Authentication system for clients
+* API key-based access control
+* Dashboard for monitoring & control
+* Real-time behavioral analysis engine
+
+---
+
+## 🧠 Core Architecture
+
+```text
+Client App
+   ↓
+TrianSec SDK (Python Library)
+   ↓
+API Key Authentication
+   ↓
+Identity Resolver
+   ↓
+Feature Engine
+   ↓
+Risk Engine (Rule-Based)
+   ↓
+Decision Engine
+   ↓
+Penalty Manager
+   ↓
+Response + Logs
 ```
 
 ---
 
-## 🧠 Key Features
+## 📦 Python SDK (Plug-and-Play Integration)
 
-### 🔍 Behavior-Based Detection
+### Purpose
 
-* Analyzes request patterns instead of static thresholds
-* Detects anomalies using ML models
-
----
-
-### 🧬 Multi-Signal Identity Tracking
-
-* Primary identity: API key / JWT
-* Secondary signals:
-
-  * IP address
-  * device/user-agent
-  * request timing patterns
+Allow clients to integrate TrianSec into their backend with **minimal effort**.
 
 ---
 
-### ⚖️ Adaptive Policy Engine
+### Usage
 
-* Dynamic decisions:
+```python
+from triansec import SecurityMiddleware
 
-  * Allow
-  * Throttle
-  * Temporary block
-* Time-bound enforcement (TTL-based)
-
----
-
-### 💬 Explainable Decisions
-
-* Provides clear reasons for actions
-* Example:
-
-  ```json
-  {
-    "status": "blocked",
-    "reason": "Unusual request burst detected",
-    "retry_after": "2 hours"
-  }
-  ```
+app.add_middleware(
+    SecurityMiddleware,
+    api_key="sk_live_xxxxxx"
+)
+```
 
 ---
 
-### 🔁 Self-Learning System
+### What SDK Does
 
-* Stores feedback from decisions
-* Retrains models periodically
-* Adapts to new attack patterns
-
----
-
-### 📊 Real-Time Dashboard
-
-* Traffic monitoring
-* Risk analytics
-* User behavior visualization
-* Decision logs
+* Sends request data to TrianSec backend
+* Attaches API key
+* Receives decision (allow/throttle/block)
+* Applies response in client app
 
 ---
 
-## 🏗️ System Architecture
+### Key Benefit
 
 ```text
-Client
-  ↓
-Identity Resolver (API Key / JWT + Signals)
-  ↓
-Feature Engineering
-  ↓
-ML Risk Engine
-  ↓
-Policy Engine (Adaptive Enforcement)
-  ↓
-Explainability Layer
-  ↓
-Response
+Zero security logic required in client backend
 ```
+
+---
+
+## 🔐 Authentication & Onboarding System
+
+### Features
+
+* Client registration & login
+* JWT-based authentication
+* API key generation
+* Instant onboarding
+
+---
+
+### Flow
+
+```text
+Register →
+Create Client →
+Generate API Key →
+Return Credentials →
+Client integrates SDK
+```
+
+---
+
+### Dual Identity Model
+
+| Identity Type | Purpose            |
+| ------------- | ------------------ |
+| JWT           | Dashboard access   |
+| API Key       | SDK authentication |
+
+---
+
+## 🧬 Multi-Signal Identity System
+
+* API Key (primary identity)
+* IP Address
+* User-Agent
+* Fingerprint (IP + UA)
+
+---
+
+## 🧠 Behavior Intelligence (No ML)
+
+TrianSec uses **real-time rule-based intelligence**:
+
+* Request rate (req/min)
+* Burst detection
+* Endpoint access patterns
+* Error rates
+* Repetition & entropy
+
+---
+
+## ⚖️ Adaptive Decision System
+
+Dynamic actions:
+
+* ✅ Allow
+* ⚠️ Throttle
+* 🚫 Block
+
+Based on:
+
+* Risk score
+* Reputation
+* Historical behavior
+
+---
+
+## 💬 Explainable Decisions
+
+```json
+{
+  "action": "block",
+  "reason": "Repeated suspicious behavior",
+  "risk_score": 0.91
+}
+```
+
+---
+
+## 🧠 Stateful Intelligence (Redis)
+
+Stores:
+
+* Request history
+* Violations
+* Reputation scores
+* Block states
+
+---
+
+## 🖥️ Dashboard System
+
+### 👤 Client Dashboard
+
+Clients get **full visibility + control**:
+
+---
+
+#### 📍 Live Threat Map
+
+* Visualizes incoming traffic globally
+* Shows attack origins in real-time
+
+---
+
+#### 🚨 Threat Monitoring
+
+* Real-time detection of suspicious activity
+* Highlights abnormal patterns
+
+---
+
+#### 🧑‍💻 Top Suspicious Users
+
+* Displays **Top 20 risky users**
+* Based on:
+
+  * behavior
+  * violations
+  * reputation
+
+---
+
+#### 📜 Recent Activity Logs
+
+* Request logs include:
+
+  * action (allow / throttle / block)
+  * risk score
+  * endpoint
+  * timestamp
+
+---
+
+#### 🎛️ Manual Controls
+
+* Block / Unblock any user instantly
+* Override system decisions when needed
+
+---
+
+#### 🔑 API Key Management
+
+* Generate API keys
+* Revoke compromised keys
+* Monitor usage
+
+
+---
+
+### 🛠️ Admin Dashboard
+
+Admins can:
+
+* Monitor all clients
+* Detect system-wide attacks
+* View global metrics
+* Override policies
+* Debug decision pipeline
 
 ---
 
@@ -121,78 +269,71 @@ Response
 
 ### Backend
 
-* FastAPI
-* Python
+* FastAPI (async)
 
-### Machine Learning
+### State
 
-* Scikit-learn / PyTorch
+* Redis (real-time decision system)
 
-### Storage
+### Database
 
-* Redis → real-time state (rate limits, blocks)
-* PostgreSQL → persistent logs & training data
+* PostgreSQL (clients, API keys)
 
 ### Frontend
 
 * React.js
-* Chart.js / Recharts
 
-### Infrastructure
+### SDK
 
-* Docker
+* Python package (`triansec`)
 
 ---
 
 ## 📁 Project Structure
 
 ```bash
-ai-api-security-system/
-├── backend/        # FastAPI application
-├── frontend/       # React dashboard
-├── ml/             # ML training & models
-├── worker/         # background jobs
-├── scripts/        # simulations
-├── docs/           # SRS & architecture
+triansec/
+├── backend/
+│   └── app/
+│       ├── middleware/
+│       ├── identity/
+│       ├── features/
+│       ├── risk/
+│       ├── policy/
+│       ├── state/
+│       ├── explainability/
+│       ├── auth/
+│       ├── client/
+│       ├── api_keys/
+│       └── main.py
+│
+├── sdk/              # Python library (triansec)
+├── frontend/         # dashboards
+├── scripts/
+└── docs/
 ```
 
 ---
 
 ## 🔄 How It Works
 
-1. **Request arrives**
-2. Identity is extracted (API key/JWT)
-3. Behavioral features are generated
-4. ML model computes risk score
-5. Policy engine decides action
-6. Response is returned with explanation
-7. Data is stored for future learning
-
----
-
-## 🧪 Simulation
-
-You can simulate:
-
-* Normal users
-* Bot traffic
-* Burst attacks
-
-Using scripts:
-
-```bash
-python scripts/simulate_users.py
-python scripts/simulate_attack.py
-```
+1. Client integrates SDK
+2. Request passes through middleware
+3. Identity is resolved
+4. Features are extracted
+5. Risk score is computed
+6. Decision is made
+7. Response is returned instantly
+8. State is updated asynchronously
 
 ---
 
 ## 📈 Use Cases
 
-* Fintech APIs (fraud detection)
-* E-commerce (bot scraping prevention)
-* SaaS platforms (API abuse control)
-* AI APIs (cost & usage protection)
+* SaaS platforms (API abuse protection)
+* Fintech (fraud-like behavior detection)
+* AI APIs (cost protection)
+* E-commerce (bot prevention)
 
 ---
 
@@ -200,46 +341,36 @@ python scripts/simulate_attack.py
 
 This system:
 
-✅ Enhances API security using behavior intelligence
-❌ Does NOT replace firewalls/CDNs (e.g., Cloudflare)
-❌ Does NOT implement full authentication systems
+✅ Provides intelligent API protection
+✅ Offers SDK + dashboard ecosystem
+❌ Does NOT replace WAF/CDN (Cloudflare, etc.)
 
 ---
 
 ## 🔮 Future Enhancements
 
-* Reinforcement learning for policy optimization
-* Reputation-based user scoring
+* Background behavior analysis pipeline
 * Advanced fingerprinting
-* SaaS deployment model
-
----
-
-## 📚 Research Potential
-
-This project can be extended into research topics such as:
-
-* Adaptive API abuse detection using online learning
-* Multi-signal identity resolution under adversarial conditions
-* Explainable AI in security systems
+* Multi-region deployment
+* SaaS hosting model
 
 ---
 
 ## 👨‍💻 Author
 
 **Aniket Paswan**
-B.Tech CSE | AI & Backend Systems
+B.Tech CSE | AI Systems & Backend Engineering
 
 ---
 
-## ⭐ Final Note
+## ⭐ Final Philosophy
 
-This project is designed as a **scalable, production-inspired system**, combining:
-
-* AI/ML
-* Backend engineering
-* System design
-
-to solve a **real-world problem in API security**.
+```text
+Fast Decisions > Heavy Computation
+Real-Time State > Offline Models
+Integration Simplicity > Complex Setup
+```
 
 ---
+
+**End of Document**
