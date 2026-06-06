@@ -28,6 +28,8 @@ class SuspiciousUserResponse(BaseModel):
     status: str
     ip: str
     last_seen: datetime
+    reason: str
+    is_blocked: bool = False
 
 class AlertResponse(BaseModel):
     id: int
