@@ -66,18 +66,18 @@ async def run_analysis_pipeline(
         6. Log to DB
     """
     try:
-        # ── 1. ERROR TRACKING ─────────────────────────────────────────────
+        # 1. ERROR TRACKING 
         if status_code is not None and status_code >= 400:
             await StateManager.increment_error(user_id)
 
-        # ── 2. FEATURE BUILDING ───────────────────────────────────────────
+        #  2. FEATURE BUILDING
         try:
             features = await _get_feature_builder().build(identity, signals)
         except Exception as e:
             logger.error(f"[pipeline] feature_builder failed for user={user_id}: {e}")
             features = _empty_features()
 
-        # ── 3. RISK SCORING ───────────────────────────────────────────────
+        # 3. RISK SCORING
         try:
             risk_score, label_ml, risk_explanation, contributions = await compute_risk(
                 signals, features
@@ -92,7 +92,7 @@ async def run_analysis_pipeline(
             risk_score = fast_risk_score  # fall back to whatever fast-path used
             ml_data = {"label": None, "explanation": "fallback", "contributions": {}}
 
-        # ── 4. PENALTY (writes blocked / throttled / reputation) ──────────
+        # 4. PENALTY (writes blocked / throttled / reputation)
         try:
             final_action, penalty_reason, meta = await apply_penalty(
                 identity=identity,
@@ -112,7 +112,7 @@ async def run_analysis_pipeline(
         # user will read this value and make its decision in <5ms.
         #
         # TTL = 5 minutes.  If a user goes quiet, the score naturally expires
-        # and they start fresh — which is correct behaviour.
+        # and they start fresh.
         #
         '''await StateManager.set(f"user:{user_id}:risk_score", round(risk_score, 4), ttl=300)
 
@@ -124,7 +124,7 @@ async def run_analysis_pipeline(
             # Clear throttle flag on clean requests so it doesn't stick forever
             await StateManager.delete(f"user:{user_id}:throttled")'''
 
-        # ── 6. DB LOGGING ─────────────────────────────────────────────────
+        # 6. DB LOGGING
         explanation = Explainer.generate(
             action=final_action,
             reason=penalty_reason,
@@ -157,7 +157,7 @@ async def run_analysis_pipeline(
         logger.exception(f"[pipeline] unhandled error for user={user_id}: {e}")
 
 
-# ── DB LOGGING (unchanged logic, just moved here) ──────────────────────────────
+#  DB LOGGING 
 
 async def _log_to_db(
     *,
@@ -237,7 +237,7 @@ async def _log_to_db(
         logger.error(f"[pipeline] DB logging failed for user={user_id}: {e}")
 
 
-# ── HELPERS ────────────────────────────────────────────────────────────────────
+# HELPERS
 
 def _action_from_score(risk_score: float) -> str:
     """Derive a base action from risk score for penalty_manager input."""
