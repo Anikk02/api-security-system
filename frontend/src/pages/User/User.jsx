@@ -76,6 +76,27 @@ const User = () => {
     user.ip.includes(searchTerm)
   );
 
+  const handleUserSelect = async (user) => {
+    try {
+      const userId = user.id.replace('user-', '');
+      const details = await userService.getUserDetails(userId);
+      
+      // Use currentRiskScore (MAX for 15 min) as the source of truth
+      setSelectedUser({
+        ...user,
+        ...details,
+        // Ensure threatScore matches currentRiskScore for consistency
+        threatScore: details.currentRiskScore || user.threatScore,
+        currentRiskScore: details.currentRiskScore || user.threatScore,
+        // Preserve the original threat score from list for component if needed
+        listThreatScore: user.threatScore
+      });
+    } catch (error) {
+      console.error('Failed to load user details:', error);
+      toast.error('Failed to load user details');
+    }
+  };
+
   const handleBlockUser = async (user) => {
     if (blockingInProgress) return;
     const toastId = toast.loading(`Blocking ${user.id}...`);
@@ -166,7 +187,7 @@ const User = () => {
               return (
                 <div
                   key={user.id}
-                  className={`uc ${isSelected ? 'uc--active' : ''}`}
+                  className={`uc ${isSelected ? 'uc--active' : ''} ${user.isBlocked ? 'uc--blocked': ''}`}
                   onClick={async () => {
                     try {
                       const userId = user.id.replace('user-', '');
@@ -180,7 +201,13 @@ const User = () => {
                       <Shield size={20} color={getShieldColor(risk.cls)} />
                     </div>
                     <div className="uc__info">
-                      <div className="uc__id">{user.id}</div>
+                      <div className="uc__id">
+                        {user.id}
+                        {user.isBlocked && (
+                          <span className="uc__blocked-badge">BLOCKED</span>
+                        )}
+                      </div>
+                      
                       <div className="uc__ip">
                         {user.ip}
                         <button className="uc__copy" onClick={(e) => { e.stopPropagation(); copyToClipboard(user.ip); }}>
@@ -218,8 +245,11 @@ const User = () => {
 
       {/* RIGHT PANEL */}
       {selectedUser ? (() => {
+        // Use currentRiskScore (MAX for 15min) as primary source
+        //Fallback to threatScore for consistency
         const score = selectedUser.currentRiskScore || selectedUser.threatScore || 0;
         const risk = getRiskLevel(score);
+        const hasScoreMismatch = selectedUser.listThreatScore && Math.abs(selectedUser.listThreatScore - score) > 0.01;
 
         return (
           <div className="ud">
@@ -263,20 +293,35 @@ const User = () => {
                 <div className="ud__stat-value">{(selectedUser.totalRequests || 0).toLocaleString()}</div>
               </div>
               <div className="ud__stat-card">
-                <div className="ud__stat-label">Violations</div>
-                <div className="ud__stat-value">{selectedUser.violations}</div>
+                <div className="ud__stat-label">Violations (15min)</div>
+                <div className="ud__stat-value">{selectedUser.violations || 0}</div>
+                <div className="ud__stat-sub">High risk requests</div>
               </div>
               <div className="ud__stat-card">
-                <div className="ud__stat-label">Risk Score</div>
+                <div className="ud__stat-label">
+                  Risk Score (15min Peak)
+                  <span className="ud__tooltip-icon" title="Highest risk score detected in the last 15 minutes">ⓘ</span>
+                </div>
+
                 <div className={`ud__stat-value ud__stat-value--${risk.cls}`}>{(score * 100).toFixed(0)}%</div>
+                {selectedUser.avgRiskScore && (
+                  <div className="ud__stat-sub">
+                    Avg: {(selectedUser.avgRiskScore * 100).toFixed(0)}%
+                  </div>
+                )}
+                {hasScoreMismatch && (
+                  <div className="ud__stat-warning">
+                    ⚠️ List: {(selectedUser.listThreatScore * 100).toFixed(0)}%
+                  </div>
+                )}
                 <div className="ud__risk-bar-track">
                   <div className={`ud__risk-bar-fill ud__risk-bar-fill--${risk.cls}`} style={{ width: `${score * 100}%` }} />
                 </div>
               </div>
               <div className="ud__stat-card">
                 <div className="ud__stat-label">Status</div>
-                <div className={`ud__status ud__status--${(selectedUser.status || 'active').toLowerCase()}`}>
-                  {selectedUser.status || 'Suspicious'}
+                <div className={`ud__status ud__status--${selectedUser.isBlocked ? 'blocked': (selectedUser.status || 'active').toLowerCase()}`}>
+                  {selectedUser.isBlocked ? 'Blocked' : (selectedUser.status || 'Suspicious')}
                 </div>
               </div>
             </div>
@@ -292,7 +337,7 @@ const User = () => {
                 Send Warning
               </button>
 
-              {isUserBlocked(selectedUser) ? (
+              {selectedUser.isBlocked ? (
                 <button
                   className="ud__btn ud__btn--unblock"
                   onClick={() => handleUnblockUser(selectedUser)}
@@ -334,11 +379,23 @@ const User = () => {
                 </div>
 
                 <div className="ud__timeline">
-                  {filteredActions.slice(0, 6).map((action, i) => {
+                  {filteredActions.slice(0, 6).map((action, i, actionsArray) => {
                     const cfg = getActionConfig(action.action);
-                    const risk_score = action.risk_score || action.riskScore || 0;
-                    const riskDelta = risk_score > 0 ? `+${risk_score.toFixed(2)}` : '0.00';
-                    const isRiskIncrease = risk_score > 0;
+                    const currentRisk = action.risk_score || action.riskScore || 0;
+                    //Calculate risk change compared to previous action
+                    const previousAction = actionsArray[i + 1]; //next item in arrary (more recent is first)
+                    const previousRisk = previousAction?.risk_score || previousAction?.riskScore || 0;
+
+                    const riskChange = currentRisk - previousRisk;
+                    const isRiskIncreasing = riskChange > 0.01; // Only show if increase > 5%
+                    const isRiskDecreasing = riskChange < -0.01;
+                    
+                    // Format risk delta with + or - sign
+                    const riskDelta = riskChange !== 0
+                      ? `${riskChange > 0 ? '+' : ''}${(riskChange * 100).toFixed(0)}%`
+                      : null;
+                    
+                      const deltaColor = riskChange > 0 ? '#ef4444' : (riskChange < 0 ? '#22c55e' : '#94a3b9');
 
                     return (
                       <div key={i} className="ud__tl-row">
@@ -365,12 +422,21 @@ const User = () => {
                             <span className="ud__tl-action" style={{ color: cfg.color }}>
                               {formatAction(action.action)}
                             </span>
-                            {isRiskIncrease && (
-                              <span className="ud__tl-risk-tag">RISK INCREASED</span>
+                            {/* Only show RISK INCREASED when actually increasing */}
+                            {isRiskIncreasing && (
+                              <span className="ud__tl-risk-tag ud__tl-risk-tag--increase">RISK INCREASED</span>
                             )}
-                            <span className="ud__tl-delta" style={{ color: risk_score > 0 ? '#ef4444' : '#22c55e' }}>
-                              {riskDelta}
-                            </span>
+                            
+                            {/* Show RISK DECREASED when decreasing */}
+                            {isRiskDecreasing && (
+                              <span className="ud__tl-risk-tag ud__tl-risk-tag--decrease">RISK DECREASED</span>
+                            )}
+                            {/* Show delta value */}
+                            {riskDelta && (
+                              <span className="ud__tl-delta" style={{color: deltaColor}}>
+                                {riskDelta}
+                              </span>
+                            )}
                           </div>
 
                           <div className="ud__tl-summary">
