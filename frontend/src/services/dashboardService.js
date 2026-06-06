@@ -1,6 +1,6 @@
 import api from './api';
 
-// Helper to convert backend snake_case to frontend camelCase
+// --- Stats ---
 const mapStats = (data) => ({
   requestsPerSecond: data.requests_per_second,
   requestsTrend: data.requests_trend,
@@ -11,6 +11,7 @@ const mapStats = (data) => ({
   trafficComposition: data.traffic_composition
 });
 
+// --- Traffic ---
 const mapTrafficData = (response) => {
   return response.data.map(point => ({
     time: new Date(point.time).getTime(),
@@ -20,15 +21,19 @@ const mapTrafficData = (response) => {
   }));
 };
 
+// --- Suspicious Users ---
 const mapSuspiciousUser = (user) => ({
   id: user.id,
   violations: user.violations,
   threatScore: user.threat_score,
   status: user.status,
   ip: user.ip,
-  lastSeen: new Date(user.last_seen)
+  lastSeen: new Date(user.last_seen),
+  reason: user.reason || "No reason",
+  isBlocked: user.is_blocked || false
 });
 
+// --- Alerts ---
 const mapAlert = (alert) => ({
   id: alert.id,
   ip: alert.ip,
@@ -38,6 +43,7 @@ const mapAlert = (alert) => ({
   userId: alert.user_id
 });
 
+// --- Logs ---
 const mapLog = (log) => ({
   id: log.id,
   requestUuid: log.request_uuid,
@@ -51,14 +57,14 @@ const mapLog = (log) => ({
 });
 
 export const dashboardService = {
-  // Get dashboard statistics
+
+  // --- STATS ---
   getStats: async () => {
     try {
       const response = await api.get('/api/dashboard/stats');
       return mapStats(response);
     } catch (error) {
       console.error('Failed to fetch stats:', error);
-      // Return mock data as fallback
       return {
         requestsPerSecond: 0,
         requestsTrend: 0,
@@ -66,25 +72,25 @@ export const dashboardService = {
         violationsTrend: 0,
         suspiciousSessions: 0,
         sessionsTrend: 0,
-        trafficComposition: { normal: 0, bots: 0, suspicious: 0 }
+        trafficComposition: { normal: 0, suspicious: 0, high_risk: 0 }
       };
     }
   },
-  
-  // Get traffic data for charts
+
+  // --- TRAFFIC ---
   getTrafficData: async (timeframe = '15m') => {
     try {
       const response = await api.get('/api/dashboard/traffic', {
         params: { timeframe }
       });
-      return mapTrafficData(response);
+      return mapTrafficData(response); // response.data already handled
     } catch (error) {
       console.error('Failed to fetch traffic data:', error);
       return [];
     }
   },
-  
-  // Get suspicious users list
+
+  // --- SUSPICIOUS USERS ---
   getSuspiciousUsers: async (limit = 10) => {
     try {
       const response = await api.get('/api/dashboard/suspicious-users', {
@@ -96,8 +102,8 @@ export const dashboardService = {
       return [];
     }
   },
-  
-  // Get recent alerts
+
+  // --- ALERTS ---
   getRecentAlerts: async (limit = 10) => {
     try {
       const response = await api.get('/api/dashboard/alerts', {
@@ -109,8 +115,8 @@ export const dashboardService = {
       return [];
     }
   },
-  
-  // Get decision logs with pagination
+
+  // --- LOGS ---
   getDecisionLogs: async (page = 1, limit = 20) => {
     try {
       const response = await api.get('/api/dashboard/logs', {
@@ -122,15 +128,12 @@ export const dashboardService = {
       return [];
     }
   },
-  
-  // Get total count of logs (for pagination)
-  getLogsCount: async () => {
-    try {
-      const response = await api.get('/api/dashboard/logs/count');
-      return response.count || 0;
-    } catch (error) {
-      console.error('Failed to fetch logs count:', error);
-      return 0;
-    }
-  },
+
+  getIpTrend: async (ip) => {
+    const response = await api.get(`/api/dashboard/ip/${ip}/trend`);
+    return response.map(p => ({
+      time: new Date(p.time).getTime(),
+      risk: p.risk
+    }))
+  }
 };
