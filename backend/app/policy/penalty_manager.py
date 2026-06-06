@@ -1,8 +1,9 @@
 import logging
 import time
 import hashlib
-
+import asyncio
 from app.state.state_manager import StateManager
+from app.state.redis_client import redis_client
 
 logger = logging.getLogger(__name__)
 
@@ -14,13 +15,13 @@ WINDOWS = {
 }
 
 BLOCK_DURATIONS = {
-    "soft": 60 * 2,
-    "medium": 60 * 10,
-    "hard": 60 * 60
+    "soft": 60 * 60 * 2,
+    "medium": 60 * 60 * 6,
+    "hard": 60 * 60 * 12
 }
 
 
-# MAIN ENTRY
+# MAIN ENTRY - OPTIMIZED VERSION
 async def apply_penalty(identity, signals, risk_score: float, base_action: str):
     """
     identity → user_id, ip
@@ -37,74 +38,185 @@ async def apply_penalty(identity, signals, risk_score: float, base_action: str):
 
         fingerprint = _generate_fingerprint(ip, ua)
 
+        # SINGLE pipeline for ALL reads
+        pipe = redis_client.pipeline()
+        
         now = time.time()
-
-        # 🔹 1. Sliding window counters
-        # Requests per IP (reuse timestamps logic via user_id OR create IP-based key)
-        req_count = await StateManager.get_request_count(user_id, WINDOWS["short"])
-
-        # Errors
-        error_count = await StateManager.get_error_count(user_id, WINDOWS["medium"])
-
+        
+        # Request count
+        ts_key = f"user:{user_id}:timestamps"
+        pipe.zcount(ts_key, now - WINDOWS["short"], now)
+        
+        # Error count
+        error_key = f"user:{user_id}:errors"
+        pipe.get(error_key)
+        
         # Violations
-        violation_count = await StateManager.get_violations(user_id)
+        violation_key = f"user:{user_id}:violations"
+        pipe.get(violation_key)
+        
+        # Reputation keys
+        rep_keys = [
+            f"rep:ip:{ip}",
+            f"rep:user:{user_id}",
+            f"rep:fp:{fingerprint}"
+        ]
+        for key in rep_keys:
+            pipe.get(key)
+        
+        # Check if IP is already blocked
+        pipe.exists(f"ip:{ip}:blocked")
+        
+        # Execute all reads in ONE call
+        results = await pipe.execute()
+        
+        # Parse results
+        req_count = results[0] or 0
+        error_count = int(results[1]) if results[1] else 0
+        violation_count = int(results[2]) if results[2] else 0
+        ip_rep = float(results[3]) if results[3] else 0.0
+        user_rep = float(results[4]) if results[4] else 0.0
+        fp_rep = float(results[5]) if results[5] else 0.0
+        ip_already_blocked = bool(results[6]) if len(results) > 6 else False
 
-        #  2. Reputation scores
-        ip_rep = await _get_reputation(f"rep:ip:{ip}")
-        user_rep = await _get_reputation(f"rep:user:{user_id}")
-        fp_rep = await _get_reputation(f"rep:fp:{fingerprint}")
+        # Fast reject if IP is already blocked
+        if ip_already_blocked:
+            return "block", "IP is blocked", _meta(risk_score, 0)
 
         combined_rep = _combine_reputation(ip_rep, user_rep, fp_rep)
 
-        #  3. Dynamic risk boost
-        #ISSUE: old formula capped risk_score contribution at 60%,
-        #      pulling all users toward the same mid-range band regardless of actual behavioral differences.
-        #FIX : risk_score is dominant (0.7 weight);, reputation and volumne are additive boosts.
+        # Dynamic risk boost
         adjusted_risk = min(
             risk_score * 0.7
             + combined_rep * 0.10
-            + min(violation_count / 20, 0.08) #FIX: violations were ignored in risk calc
+            + min(violation_count / 20, 0.08)
             + min(req_count / 200, 0.05)
             + min(error_count / 100, 0.07),
             1.0
         )
 
-        #  4. Hard rules (fast path)
-        if combined_rep > 0.9:
-            await _block(ip, user_id, "hard")
-            return "block", "High reputation threat", _meta(adjusted_risk, combined_rep)
-
-        #  5. Escalation logic
-
-        #  HARD BLOCK
-        if adjusted_risk > 0.85:
-            await _increase_reputation(ip, user_id, fingerprint, 0.2)
-            await _block(ip, user_id, "hard")
-
-            return "block", "Severe malicious activity", _meta(adjusted_risk, combined_rep)
-
-        #  MEDIUM BLOCK
-        if adjusted_risk > 0.7:
-            await _increase_reputation(ip, user_id, fingerprint, 0.1)
-
-            if violation_count > 3:
-                await _block(ip, user_id, "medium")
-                return "block", "Repeated suspicious behavior", _meta(adjusted_risk, combined_rep)
-
-            return "throttle", "High risk traffic", _meta(adjusted_risk, combined_rep)
-
-        #  THROTTLE
-        if adjusted_risk > 0.5:
-            await _increase_reputation(ip, user_id, fingerprint, 0.05)
-            return "throttle", "Suspicious activity", _meta(adjusted_risk, combined_rep)
-
-        #  SAFE
-        await _decay_reputation(ip, user_id, fingerprint)
-        return base_action, "Normal traffic", _meta(adjusted_risk, combined_rep)
+        # Determine action with FULL explanation
+        action, reason, delta, should_block, block_severity = _determine_action_with_explanation(
+            adjusted_risk, combined_rep, violation_count, risk_score, req_count, error_count
+        )
+        
+        # SINGLE pipeline for ALL writes (fire and forget)
+        asyncio.create_task(_apply_updates_pipeline(
+            ip, user_id, fingerprint, rep_keys, 
+            delta,should_block, block_severity, action, adjusted_risk
+        ))
+        
+        return action, reason, _meta(adjusted_risk, combined_rep)
 
     except Exception as e:
         logger.error(f"Penalty V2 failed: {e}")
         return base_action, "fallback", {}
+
+
+def _determine_action_with_explanation(adjusted_risk, combined_rep, violation_count, original_risk, req_count, error_count):
+    """
+    Determine action with detailed, user-friendly explanations.
+    Returns: (action, reason, delta, should_block, block_severity)
+    """
+    
+    # Hard rules - High reputation threat
+    if combined_rep > 0.9:
+        return (
+            "block", 
+            f"High reputation threat (reputation={combined_rep:.2f})", 
+            0.2, True, "hard"
+        )
+    
+    # Hard Block (85%+ risk)
+    if adjusted_risk > 0.85:
+        factors = []
+        if original_risk > 0.8:
+            factors.append(f"risk score {original_risk:.0%}")
+        if violation_count > 5:
+            factors.append(f"{violation_count} violations")
+        if req_count > 100:
+            factors.append(f"{req_count} requests/min")
+        
+        reason = f"Severe malicious activity detected" + (f" ({', '.join(factors)})" if factors else "")
+        return "block", reason, 0.2, True, "hard"
+    
+    # Medium Block (70-85% risk)
+    if adjusted_risk > 0.7 and violation_count > 3:
+        return (
+            "block", 
+            f"Repeated suspicious behavior ({violation_count} violations in 30min)", 
+            0.1, 
+            True, #should_block
+            "medium" # block_severity
+        )
+    
+    if adjusted_risk > 0.7:
+        # Throttle for high risk without enough violations
+        factors = []
+        if original_risk > 0.65:
+            factors.append(f"risk spike to {original_risk:.0%}")
+        if error_count > 10:
+            factors.append(f"{error_count} errors")
+        
+        reason = f"High risk traffic" + (f" ({', '.join(factors)})" if factors else "")
+        return "throttle", reason, 0.05, False, None
+    
+    # Throttle (50-70% risk)
+    if adjusted_risk > 0.5:
+        factors = []
+        if original_risk > 0.55:
+            factors.append(f"elevated risk {original_risk:.0%}")
+        if req_count > 50:
+            factors.append(f"high volume {req_count}/min")
+        
+        reason = f"Suspicious activity detected" + (f" ({', '.join(factors)})" if factors else "")
+        return "throttle", reason, 0.05, False, None
+    
+    # Normal traffic
+    return "allow", "Normal traffic", -0.02, False, None
+
+
+async def _apply_updates_pipeline(ip, user_id, fingerprint, rep_keys, delta, should_block, block_severity, action, adjusted_risk):
+    """Single pipeline for ALL updates - fire and forget"""
+    try:
+        pipe = redis_client.pipeline()
+        
+        # Update reputation keys
+        for key in rep_keys:
+            pipe.incrbyfloat(key, delta)
+            pipe.expire(key, 3600)
+        
+        # Update request counter
+        ts_key = f"user:{user_id}:timestamps"
+        now = time.time()
+        pipe.zadd(ts_key, {str(now): now})
+        pipe.zremrangebyscore(ts_key, 0, now - WINDOWS["long"])
+        pipe.expire(ts_key, WINDOWS["long"])
+        
+        # Apply block if needed
+        if action == 'block' and should_block:
+            duration = BLOCK_DURATIONS[block_severity]
+            pipe.setex(f"user:{user_id}:blocked", duration, "1")
+            pipe.setex(f"ip:{ip}:blocked", duration, "1")
+            #clear throttle flag if it exist
+            pipe.delete(f"user:{user_id}:throttled")
+        
+        # Add throttle tracking if needed
+        if action == "throttle":
+            #Set throttle flag for 60 seconds
+            pipe.setex(f"user:{user_id}:throttled", 60, "1")
+        
+        else:
+            #Decay throttle if it exists
+            pipe.delete(f"user:{user_id}:throttled")
+        
+        # Store the current risk score for the next request
+        pipe.setex(f"user:{user_id}:risk_score", 300, str(adjusted_risk))
+        
+        await pipe.execute()
+        
+    except Exception as e:
+        logger.error(f"Background updates pipeline failed for user {user_id}: {e}")
 
 
 # ---------------- HELPERS ---------------- #
@@ -114,38 +226,8 @@ def _generate_fingerprint(ip, ua):
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
-async def _get_reputation(key):
-    value = await StateManager.get(key)
-    return float(value) if value else 0.0
-
-
-async def _increase_reputation(ip, user_id, fp, delta):
-    await _update_rep(f"rep:ip:{ip}", delta)
-    await _update_rep(f"rep:user:{user_id}", delta)
-    await _update_rep(f"rep:fp:{fp}", delta)
-
-
-async def _decay_reputation(ip, user_id, fp):
-    await _update_rep(f"rep:ip:{ip}", -0.02)
-    await _update_rep(f"rep:user:{user_id}", -0.02)
-    await _update_rep(f"rep:fp:{fp}", -0.02)
-
-
-async def _update_rep(key, delta):
-    val = await _get_reputation(key)
-    val = max(0.0, min(val + delta, 1.0))
-    await StateManager.set(key, val, ttl=3600)
-
-
 def _combine_reputation(ip, user, fp):
     return min(1.0, (ip * 0.5 + user * 0.3 + fp * 0.2))
-
-
-async def _block(ip, user_id, severity):
-    duration = BLOCK_DURATIONS[severity]
-
-    await StateManager.block_user(user_id, duration)
-    await StateManager.block_ip(ip, duration)
 
 
 def _meta(risk, rep):
