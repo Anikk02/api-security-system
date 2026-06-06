@@ -28,7 +28,7 @@ const Dashboard = () => {
       const [statsData, traffic, suspiciousUsers, recentAlerts] = await Promise.all([
         dashboardService.getStats(),
         dashboardService.getTrafficData('15m'),
-        dashboardService.getSuspiciousUsers(10),
+        dashboardService.getSuspiciousUsers(20),
         dashboardService.getRecentAlerts(5)
       ]);
       
@@ -133,6 +133,33 @@ const Dashboard = () => {
       <div className="dashboard__risk-charts">
         <RiskChart type="pie" title="Risk Distribution" height={350} />
         <RiskChart type="radar" title="Risk Metrics Analysis" height={350} />
+      </div>
+
+      {/* Recent Alerts */}
+      <div className="dashboard__alerts">
+        <h3 className="dashboard__alerts-title">Recent Alerts</h3>
+
+        <div className="dashboard__alerts-list">
+          {alerts.length === 0 ? (
+            <p className="dashboard__alerts-empty">No recent alerts</p>
+          ) : (
+            alerts.map(alert => (
+              <div key={alert.id} className="dashboard__alert-card">
+                <div className="dashboard__alert-header">
+                  <span className="dashboard__alert-type">{alert.type}</span>
+                  <span className="dashboard__alert-score">{alert.score}</span>
+                </div>
+
+                <div className="dashboard__alert-body">
+                  <span className="dashboard__alert-ip">{alert.ip}</span>
+                  <span className="dashboard__alert-time">
+                    {new Date(alert.timestamp).toLocaleTimeString()}
+                  </span>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </div>
       
       <div className="dashboard__table">
