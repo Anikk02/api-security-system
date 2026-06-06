@@ -1,5 +1,8 @@
 import math
+import time
+import asyncio
 from collections import Counter
+from app.state.redis_client import redis_client
 
 # Theoretical max entropy based on expected endpoint space(tunable)
 MAX_ENDPOINT_ENTROPY = math.log2(50)
@@ -13,17 +16,100 @@ class FeatureBuilder:
 
     async def build(self, identity, signals):
         user_id = identity.user_id
+        now = time.time()
+
+        # SINGLE PIPELINE for all Redis reads
+        pipe = redis_client.pipeline()
+
+        # Request count (5 seconds)
+        ts_key = f"user:{user_id}:timestamps"
+        pipe.zcount(ts_key, now -5, now)
+
+        # Request count (60 seconds)
+        pipe.zcount(ts_key, now - 60, now)
+
+        # Recent endpoints (60 seconds)
+        endpoint_key = f"user:{user_id}:endpoints"
+        pipe.zrangebyscore(endpoint_key, now - 60, now)
+
+        # Error count (60 seconds)
+        error_key = f"user:{user_id}:errors"
+        pipe.get(error_key)
+
+        # Request timestamps
+        pipe.zrangebyscore(ts_key, now - 60, now, withscores=True)
+
+        # IP changes (300 seconds)
+        ip_key = f"user:{user_id}:ips"
+        pipe.smembers(ip_key)
+
+        #Execute all reads in one Redis call
+        results = await pipe.execute()
+
+        # Parse results with proper type conversion
+        def to_int(value, default=0):
+            if value is None:
+                return default
+            if isinstance(value, bytes):
+                return int(value.decode())
+            if isinstance(value, str):
+                return int(value)
+            if isinstance(value, (int, float)):
+                return int(value)
+            return default
+        
+        def to_float(value, default=0.0):
+            if value is None:
+                return default
+            if isinstance(value, bytes):
+                return float(value.decode())
+            if isinstance(value, str):
+                return float(value)
+            if isinstance(value, (int, float)):
+                return float(value)
+            return default
+        
+        # Convert results
+        req_per_5sec_raw = to_int(results[0])
+        req_per_min = to_int(results[1])
+        endpoints_raw = results[2] or []
+        error_count_raw = to_int(results[3])
+        timestamps_raw = results[4] or []
+        ip_set = results[5] or set()
+
+        # Parse endpoints (extract from ZSET values)
+        endpoints = []
+        for item in endpoints_raw:
+            val = item.decode() if isinstance(item, bytes) else str(item)
+            if "|" in val:
+                endpoints.append(val.split("|", 1)[1])
+            else:
+                endpoints.append(val)
+        
+        # Parse timestamps
+        request_timestamps = []
+        for item in timestamps_raw:
+            if isinstance(item, tuple) and len(item) ==2:
+                request_timestamps.append(float(item[1]))
+            elif isinstance(item, (int, float)):
+                request_timestamps.append(float(item))
+            elif isinstance(item, bytes):
+                try:
+                    request_timestamps.append(float(item.decode()))
+                except:
+                    pass
+        
+        ip_changes = len(ip_set) if ip_set else 0
 
         # BASIC RATE FEATURES
-        req_per_5sec = await self.state.get_request_count(user_id, window=5)
-        req_per_sec = req_per_5sec / 5
-        req_per_min = await self.state.get_request_count(user_id, window=60)
+        req_per_sec = (req_per_5sec_raw or 0) / 5
 
-        print("DEBUG -> req/sec:", req_per_sec)
-        print("DEBUG -> req/min:", req_per_min)
+        #Print occassionally to avoid log spam
+        if hash(user_id) % 100 == 0: #sample 1% of requests
+            print("DEBUG -> req/sec:", req_per_sec)
+            print("DEBUG -> req/min:", req_per_min)
 
         # ENDPOINT BEHAVIOR
-        endpoints = await self.state.get_recent_endpoints(user_id, window=60)
         if not isinstance(endpoints, list):
             endpoints = []
         unique_endpoints = len(set(endpoints)) if endpoints else 0
@@ -32,8 +118,17 @@ class FeatureBuilder:
         raw_entropy = self._calculate_entropy(endpoints)
         endpoint_entropy = round(min(raw_entropy / MAX_ENDPOINT_ENTROPY, 1.0), 4)
 
+        counter = Counter(endpoints)
+        total = len(endpoints)
+
+        if total > 0:
+            top_count = max(counter.values())
+            top_endpoint_ratio = round(top_count / total, 4)
+        else:
+            top_endpoint_ratio = 0.0
+
         # ERROR ANALYSIS
-        error_count = await self.state.get_error_count(user_id, window=60)
+        error_count = error_count_raw or 0
         total_requests = max(req_per_min, 1)
 
         error_rate = round(error_count / total_requests, 4) # (error_count + 1) / (total_requests + 5) -> round(error_count / total_requests, 4)
@@ -50,32 +145,46 @@ class FeatureBuilder:
         # Normalize burst_score
         burst_score = round(math.log1p(burst_score) / math.log1p(10), 4) # scale factor (tunable)
 
-        # IP BEHAVIOR
-        ip_changes = await self.state.get_ip_change_count(user_id, window=300)
-
         # USER AGENT ANALYSIS
         ua = (signals.user_agent or "").lower()
 
         is_bot = any(bot in ua for bot in ['curl', 'wget', 'bot', 'python', 'scrapy'])
         is_browser = any(b in ua for b in ['mozilla', 'chrome', 'safari', 'edge'])
 
-        # TIME PATTERN FEATURES
-        request_timestamps = await self.state.get_request_timestamps(user_id, window=60)
-
         #request regularity score
         intervals = []
-        if len(request_timestamps) > 2:
+        if len(request_timestamps) >= 6: # need atleast 5 intervals
             intervals = [
                 request_timestamps[i] - request_timestamps[i-1]
                 for i in range(1, len(request_timestamps))
             ]
-            min_i, max_i = min(intervals), max(intervals)
-            regularity = 1 - (min_i / max_i if max_i > 0 else 0)
-        else:
-            regularity = 0
+            
+            if intervals:
+                mean_i = sum(intervals) / len(intervals)
 
-        print("DeBUG -> user:", user_id)
-        print("DEBUG -> timestamps:", request_timestamps)
+                if mean_i > 0:
+                    # Clip extreme outliers (prevent distortion)
+                    clipped = [min(i, 5 * mean_i) for i in intervals]
+
+                    variance = sum((x - mean_i) **2 for x in clipped) / len(clipped)
+                    std_dev = variance ** 0.5
+
+                    # Coefficient of variation (scale-independent)
+                    cv = std_dev / mean_i
+
+                    #Final regularity score
+                    regularity = 1 / (1 + cv)
+                else:
+                    regularity = 0.0
+            else:
+                regularity = 0.0
+        else:
+            regularity = 0.0
+
+        # Only print occassionally
+        if hash(user_id) % 100 == 0:
+            print("DeBUG -> user:", user_id)
+            print("DEBUG -> timestamps:", request_timestamps)
 
         time_variance = self._calculate_time_variance(request_timestamps)
 
@@ -99,6 +208,8 @@ class FeatureBuilder:
             # endpoint behavior
             'unique_endpoints': unique_endpoints,
             'endpoint_entropy': round(endpoint_entropy, 4),
+
+            'top_endpoint_ratio': top_endpoint_ratio,
 
             # errors
             'error_rate': round(error_rate, 4),
