@@ -34,13 +34,13 @@ async def evaluate_request(identity, signals, features=None):
         base_action = None
         base_reason = None
 
-    # 3. Feature fallback (UNCHANGED as requested)
+    # 3. Feature fallback
     if features is None:
         logger.warning("FeatureBuilder not used - fallback to minimal features")
         features = {
             "req_per_min": 0,
-            "burst_score": 0.0, #FIX: risk_engine defaulted to 1.0, adding +0.5 burst score
-            "unique_endpoints": None, #FIX: pattern_risk treated repetition as 1.0 (max bot score)
+            "burst_score": 0.0, #risk_engine defaulted to 1.0, adding +0.5 burst score
+            "unique_endpoints": None, #pattern_risk treated repetition as 1.0 (max bot score)
             "endpoint_entropy": 0.0,
             "is_suspicious_ua": False,
             "is_blocked": False
