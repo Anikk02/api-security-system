@@ -6,239 +6,251 @@ import asyncio
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
-
-from app.db.session import AsyncSessionLocal
-from app.db.models.request_log import RequestLog
-from app.db.models.decision_log import DecisionLog
-from app.db.models.feature_log import FeatureLog
-from app.db.models.ml_prediction import MLPrediction
+from starlette.background import BackgroundTasks
 
 from app.identity.resolver import resolve_identity
 from app.identity.signals import extract_signals
-from app.policy.decision_engine import evaluate_request
-from app.explainability.explainer import Explainer
-
-from app.features.feature_builder import FeatureBuilder
 from app.state.state_manager import StateManager
+from app.utils.rate_limiter import SlidingWindowRateLimiter
+
+# Background pipeline (heavy work)
+from app.background.analysis_pipeline import run_analysis_pipeline
 
 logger = logging.getLogger(__name__)
 
-state_manager = StateManager()
-feature_builder = FeatureBuilder(state_manager)
+SAFE_ENDPOINTS = ["/api/dashboard", "/health"]
+
+#Initialize rate limiter
+minute_limiter = SlidingWindowRateLimiter(max_requests=60, window_seconds=60)
+strict_limiter = SlidingWindowRateLimiter(max_requests=30, window_seconds=60)
 
 
 class RequestMiddleware(BaseHTTPMiddleware):
+    """
+    Fast path: resolve identity → check signals → decide → respond.
+
+    Target latency: <15ms (2 Redis GETs + 1 pipeline write).
+
+    All heavy work (feature building, risk scoring, DB logging, reputation
+    updates) runs in a background task AFTER the response is returned.
+    The risk_score written by that background task feeds the NEXT request's
+    fast-path lookup, so intelligence accumulates over time with zero
+    added latency.
+    """
 
     async def dispatch(self, request: Request, call_next):
         start_time = time.time()
-
-        # Stable request UUID
         request.state.request_uuid = str(uuid.uuid4())
 
         logger.info(
-            f"{request.method} {request.url.path} | req_uuid={request.state.request_uuid}"
+            f"{request.method} {request.url.path} | "
+            f"req_uuid={request.state.request_uuid}"
         )
 
-        async with AsyncSessionLocal() as db:
-            try:
-                # Identity + Signals
-
-                identity = await resolve_identity(request, db)
-                signals = await extract_signals(request)
-                #Simulation label (for ML training)
-                label = request.headers.get("X-Simulated-Label", None)
-
-                # FEATURE TRACKING
-                '''await state_manager.track_request(
-                    identity.user_id,
-                    request.url.path,
-                    signals.ip_address
-                )'''
-
-                # Features
-                try:
-                    features = await feature_builder.build(identity, signals)
-                except Exception as e:
-                    logger.error(f"Feature builder failed: {e}")
-                    features = {}
-
-                # Decision
-                try:
-                    action, reason, risk_score, ml_data = await evaluate_request(
-                        identity, signals, features
-                    )
-                except Exception as e:
-                    logger.error(f"Decision engine failed: {e}")
-                    action, reason, risk_score, ml_data = "allow", "fallback", 0.0, None
-
-                # Explanation
-                explanation = Explainer.generate(
-                    action=action,
-                    reason=reason,
-                    risk_score=risk_score,
-                    features=features,
-                    ml_data=ml_data
-                )
-
-                # BLOCK FLOW
-                if action == "block":
-
-                    # track error
-                    await state_manager.increment_error(identity.user_id)
-
-                    request_id = await self._log_all(
-                        db, identity, signals, features,
-                        action, reason, risk_score,
-                        ml_data, explanation,
-                        request.state.request_uuid,
-                        status_code=429
-                    )
-
-                    return JSONResponse(
-                        status_code=429,
-                        content={
-                            "detail": reason,
-                            "request_id": request_id,
-                            "request_uuid": request.state.request_uuid
-                        }
-                    )
-
-                # THROTTLE (progressive control)
-                if action == "throttle":
-                    await asyncio.sleep(0.3)
-
-                # NORMAL FLOW
-                response = await call_next(request)
-
-                await state_manager.track_request(
-                    identity.user_id,
-                    signals.endpoint,
-                    signals.ip_address,
-                    response.status_code  
-                )
-
-                if response.status_code >= 400:
-                    await state_manager.increment_error(identity.user_id)
-
-                process_time = time.time() - start_time
-
-                request_id = await self._log_all(
-                    db,
-                    identity,
-                    signals,
-                    features,
-                    action,
-                    reason,
-                    risk_score,
-                    ml_data,
-                    explanation,
-                    request.state.request_uuid,
-                    status_code=response.status_code,
-                    label=label
-                )
-
-                logger.info(
-                    f"user={identity.user_id} | action={action} | "
-                    f"status={response.status_code} | time={process_time:.4f}s | "
-                    f"req_uuid={request.state.request_uuid}"
-                )
-
-                # Headers
-                response.headers["X-Request-ID"] = str(request_id)
-                response.headers["X-Request-UUID"] = request.state.request_uuid
-
-                return response
-
-            except Exception as e:
-                logger.exception(f"Middleware error: {str(e)}")
-
-                return JSONResponse(
-                    status_code=500,
-                    content={"detail": "Internal middleware error"}
-                )
-
-    # CENTRALIZED LOGGING
-    async def _log_all(
-        self,
-        db,
-        identity,
-        signals,
-        features,
-        action,
-        reason,
-        risk_score,
-        ml_data,
-        explanation,
-        request_uuid,
-        status_code=200,
-        label=None
-    ):
         try:
-            # REQUEST LOG
-            request_log = RequestLog(
-                user_id=identity.user_id,
-                endpoint=signals.endpoint,
-                ip_address=signals.ip_address,
-                user_agent=signals.user_agent,
-                status_code=status_code,
-                request_uuid=request_uuid
+            # SAFE ENDPOINT BYPASS (before identity - zero DB cost)
+            if any(request.url.path.startswith(e) for e in SAFE_ENDPOINTS):
+                response = await call_next(request)
+                response.headers["X-Request-UUID"] = request.state.request_uuid
+                return response
+            
+            # 1. IDENTITY + SIGNALS
+            from app.db.session import AsyncSessionLocal
+            async with AsyncSessionLocal() as db:
+                identity = await resolve_identity(request, db)
+
+            signals = await extract_signals(request)
+            label = request.headers.get("X-Simulated-Label")
+
+            # 3. FAST-PATH DECISION (1 Redis pipeline - 2 reads)
+            #
+            # Pass IP for IP block checking
+            # checks BOTH user and IP blocks in a single pipeline
+            #
+            blocked, risk_score, throttled = await StateManager.get_decision_signals(
+                identity.user_id, 
+                identity.ip_address  # Pass IP for block checking
             )
 
-            db.add(request_log)
-            await db.flush()
+            # Determine action based on fast-path signals
+            action, reason = await _fast_decision(blocked, throttled, risk_score)
 
-            request_id = request_log.id
-
-            # DECISION LOG
-            db.add(DecisionLog(
-                user_id=identity.user_id,
-                request_id=request_id,
-                action=action,
-                reason=reason,
-                risk_score=risk_score,
-                explanation=explanation.get("summary"),
-                explanation_json=explanation,
-                ground_truth_label=label,
-                request_uuid=request_uuid
-            ))
-
-            # FEATURE LOG
-            db.add(FeatureLog(
-                user_id=identity.user_id,
-                request_id=request_id,
-                request_uuid=request_uuid,
-                features=features,
-                behavioral_features={
-                    'req_per_min': features.get('req_per_min'),
-                    'req_per_sec': features.get('req_per_sec'),
-                    'burst_score': features.get('burst_score'),
-                },
-                pattern_features={
-                    'endpoint_entropy': features.get('endpoint_entropy'),
-                },
-                identity_features={
-                    'ip_changes': features.get('ip_changes'),
-                    'is_bot': features.get('is_bot'),
-                }
-            ))
-
-            # ML PREDICTION
-            if ml_data:
-                db.add(MLPrediction(
+            # 4. TRACK THIS REQUEST (fire-and-forget pipeline)
+            # One pipelined ZADD+SADD. Does NOT block the response.
+            asyncio.ensure_future(
+                StateManager.track_request_async(
                     user_id=identity.user_id,
-                    request_id=request_id,
-                    risk_score=risk_score,
-                    risk_label=ml_data.get("label"),
-                    explanation=explanation.get("summary"),
-                    feature_contributions=explanation.get("feature_contributions"),
-                    request_uuid=request_uuid
-                ))
+                    endpoint=signals.endpoint,
+                    ip=signals.ip_address,
+                    status_code=None,   # unknown yet; updated in background
+                )
+            )
 
-            await db.commit()
+            # 5. BLOCK FAST PATH
+            if action == "block":
+                # Kick off background to still log + update reputation
+                asyncio.ensure_future(
+                    run_analysis_pipeline(
+                        user_id=identity.user_id,
+                        identity=identity,
+                        signals=signals,
+                        status_code=429,
+                        request_uuid=request.state.request_uuid,
+                        label=label,
+                        fast_risk_score=risk_score,
+                    )
+                )
 
-            return request_id
+                return JSONResponse(
+                    status_code=429,
+                    content={
+                        "detail": reason,
+                        "request_uuid": request.state.request_uuid,
+                    },
+                    headers={
+                        "X-RateLimit-Reset": "blocked",
+                        "Retry-After": "3600",
+                    }
+                )
+
+            # 6. RATE LIMITING CHECK (Sliding Window)
+            limiter = strict_limiter if risk_score > 0.6 else minute_limiter
+            allowed, count, retry_after = await limiter.check_and_allow(
+                f"user:{identity.user_id}"
+            )
+
+            # 7. RATE LIMITED PATH (429)
+            if not allowed:
+                # Still run background analysis
+                asyncio.ensure_future(
+                    run_analysis_pipeline(
+                        user_id=identity.user_id,
+                        identity=identity,
+                        signals=signals,
+                        status_code=429,
+                        request_uuid=request.state.request_uuid,
+                        label=label,
+                        fast_risk_score=risk_score,
+                    )
+                )
+
+                return JSONResponse(
+                    status_code=429,
+                    content={
+                        "detail":f"Rated limit exceeded. {count}/{limiter.max_requests} requests per minute.",
+                        "retry_after": retry_after,
+                        "remaining": 0,
+                        "reset": int(time.time() + retry_after),
+                        "request_uuid": request.state.request_uuid
+                    },
+                    headers={
+                        "Retry-After": str(retry_after),
+                        "X-RateLimit-Limit": str(limiter.max_requests),
+                        "X-RateLimit-Remaining": "0",
+                        "X-RateLimit-Reset": str(int(time.time() + retry_after)),
+                        "Cache-Control": "no-cache, no-store, must-revalidate"
+                    }
+                )
+            
+            # Users flagged with throttled flag from penalty_manager
+            if throttled:
+                # The flag means they're already being rate-limited elsewhere
+                # Just process the request normally
+    
+                response = await call_next(request)
+                process_time = time.time() - start_time
+    
+                # Add throttle headers to inform them
+                response.headers["X-RateLimit-Limit"] = "100"
+                response.headers["X-RateLimit-Remaining"] = "0"
+                response.headers["X-RateLimit-Reset"] = "60"
+                response.headers["X-Request-UUID"] = request.state.request_uuid
+                response.headers["X-Process-Time"] = f"{process_time:.4f}"
+                response.headers["X-Throttled"] = "true"
+    
+                logger.info(
+                     f"user={identity.user_id} | action=throttle (flag active) | "
+                     f"status={response.status_code} | time={process_time:.4f}s | "
+                     f"req_uuid={request.state.request_uuid}"
+                )
+    
+                # Background analysis
+                asyncio.ensure_future(
+                    run_analysis_pipeline(
+                        user_id=identity.user_id,
+                        identity=identity,
+                        signals=signals,
+                        status_code=response.status_code,
+                        request_uuid=request.state.request_uuid,
+                        label=label,
+                        fast_risk_score=risk_score,
+                    )
+                )
+                
+                return response
+
+            # 7. NORMAL FLOW
+            response = await call_next(request)
+            process_time = time.time() - start_time
+
+            logger.info(
+                f"user={identity.user_id} | action={action} | "
+                f"status={response.status_code} | time={process_time:.4f}s | "
+                f"req_uuid={request.state.request_uuid}"
+            )
+
+            response.headers["X-Request-UUID"] = request.state.request_uuid
+            response.headers["X-Process-Time"] = f"{process_time:.4f}"
+
+            # 8. BACKGROUND ANALYSIS
+            # Runs AFTER response is sent. Updates risk_score, reputation,
+            # feature log, DB — all invisible to this request's latency.
+            asyncio.ensure_future(
+                run_analysis_pipeline(
+                    user_id=identity.user_id,
+                    identity=identity,
+                    signals=signals,
+                    status_code=response.status_code,
+                    request_uuid=request.state.request_uuid,
+                    label=label,
+                    fast_risk_score=risk_score,
+                )
+            )
+
+            return response
 
         except Exception as e:
-            logger.error(f"DB logging failed: {e}")
-            await db.rollback()
-            return None
+            logger.exception(f"Middleware error: {e}")
+            return JSONResponse(
+                status_code=500,
+                content={"detail": "Internal middleware error"},
+            )
+
+
+# FAST DECISION LOGIC
+# This is the ONLY decision logic in the hot path.
+# Reads pre-computed Redis signals.
+async def _fast_decision(blocked: bool, throttled: bool, risk_score: float) -> tuple[str, str]:
+    """
+    Returns (action, reason) using only pre-computed Redis signals.
+    """
+    
+    # Highest priority: Blocked users
+    if blocked:
+        return "block", "User or IP is temporarily blocked"
+    
+    # Throttled users
+    if throttled:
+        return "throttle", "Rate limit active"
+    
+    # Risk-based decisions (thresholds mirror penalty_manager)
+    if risk_score > 0.70:
+        return "block", "Severe risk score detected"
+    
+    if risk_score > 0.50:
+        return "throttle", "High risk detected"
+    
+    if risk_score > 0.45:
+        return "throttle", "Suspicious activity detected"
+    
+    return "allow", "Normal traffic"
