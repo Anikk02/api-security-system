@@ -23,8 +23,8 @@ class Explainer:
             contributions = {}
 
             # 1. RATE / VOLUME ANALYSIS
-            req_per_min = features.get("req_per_min", 0)
-            req_per_sec = features.get("req_per_sec", 0)
+            req_per_min = features.get("req_per_min") or 0
+            req_per_sec = features.get("req_per_sec") or 0
 
             if req_per_min > 100:
                 factors.append("High request volume detected")
@@ -35,7 +35,7 @@ class Explainer:
                 contributions["req_per_min"] = req_per_min
 
             # 2. BURST BEHAVIOR
-            burst_score = features.get("burst_score", 0)
+            burst_score = features.get("burst_score") or 0
 
             if burst_score > 0.7:
                 factors.append("Abnormal traffic burst detected")
@@ -46,8 +46,8 @@ class Explainer:
                 contributions["burst_score"] = burst_score
 
             # 3. ENDPOINT PATTERNS
-            entropy = features.get("endpoint_entropy", 0)
-            unique_endpoints = features.get("unique_endpoints", 0)
+            entropy = features.get("endpoint_entropy") or 0
+            unique_endpoints = features.get("unique_endpoints") or 0
 
             if entropy > 0.7:
                 factors.append("High endpoint diversity (possible scanning)")
@@ -61,7 +61,7 @@ class Explainer:
                 contributions["unique_endpoints"] = unique_endpoints
 
             # 4. ERROR BEHAVIOR
-            error_rate = features.get("error_rate", 0)
+            error_rate = features.get("error_rate") or 0
 
             if error_rate > 0.5:
                 factors.append("High error rate (possible probing or broken client)")
@@ -79,15 +79,15 @@ class Explainer:
                 factors.append("Bot-like traffic pattern identified")
 
             # 6. IDENTITY INSTABILITY
-            ip_changes = features.get("ip_changes", 0)
+            ip_changes = features.get("ip_changes") or 0
 
             if ip_changes > 5:
                 factors.append("Frequent IP changes detected")
                 contributions["ip_changes"] = ip_changes
 
             # 7. TIME PATTERN ANALYSIS
-            time_variance = features.get("time_variance", 0)
-            regularity = features.get("request_regularity", 0)
+            time_variance = features.get("time_variance") or 0
+            regularity = features.get("request_regularity") or 0
 
             if time_variance < 0.02 and req_per_min > 20:
                 factors.append("Highly regular request timing (automation suspected)")
