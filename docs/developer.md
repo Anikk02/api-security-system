@@ -48,7 +48,7 @@ Developer Dashboard
 └── Debug Tools
 ```
 
-## FOLDER STRUCTURE
+## FOLDER STRUCTURE (BACKEND)
 ```text
 app/
 ├── developer/
@@ -72,7 +72,33 @@ app/
 │   │
 │   └── __init__.py
 ```
-
+## FOLDER STRUCTURE(FRONTEND)
+```text
+src/
+├── pages/
+│   ├── developer/
+│   │   ├── Overview.jsx
+│   │   ├── Traffic.jsx
+│   │   ├── Abuse.jsx
+│   │   ├── Logs.jsx
+│   │   ├── Clients.jsx
+│   │   ├── SystemHealth.jsx
+│   │   └── Debug.jsx
+│
+├── components/
+│   ├── developer/
+│   │   ├── MetricCard.jsx
+│   │   ├── Chart.jsx
+│   │   ├── LogsTable.jsx
+│   │   ├── ClientTable.jsx
+│   │   └── Filters.jsx
+│
+├── layouts/
+│   └── DeveloperLayout.jsx
+│
+├── services/
+│   └── developerApi.js
+```
 ---
 
 ## 🌍 1. Overview
