@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Filter, Download, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
-import { dashboardService } from '../../services/dashboardService';
+import { dashboardService } from '../../../services/client/dashboardService';
 import toast from 'react-hot-toast';
 import './Logs.css';
 

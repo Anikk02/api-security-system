@@ -11,7 +11,7 @@ import {
   ResponsiveContainer,
   Legend
 } from 'recharts';
-import { CHART_CONFIG } from '../../utils/constants';
+import { CHART_CONFIG } from '../../../utils/client/constants';
 import './TrafficChart.css';
 
 const TrafficChart = ({ data, title = 'Live Traffic Overview' }) => {

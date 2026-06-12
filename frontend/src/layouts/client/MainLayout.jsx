@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
-import Navbar from '../components/Navbar/Navbar';
-import Sidebar from '../components/Sidebar/Sidebar';
-import MobileBottomNav from '../components/MobileBottomNav/MobileBottomNav';
+import Navbar from '../../components/client/Navbar/Navbar';
+import Sidebar from '../../components/client/Sidebar/Sidebar';
+import MobileBottomNav from '../../components/client/MobileBottomNav/MobileBottomNav';
 import './MainLayout.css';
 
 const MainLayout = () => {

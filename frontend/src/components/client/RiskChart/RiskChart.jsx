@@ -23,8 +23,8 @@ import {
   Area
 } from 'recharts';
 import { TrendingUp, TrendingDown, Shield, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
-import { CHART_CONFIG, RISK_LEVELS, RISK_COLORS } from '../../utils/constants';
-import { dashboardService } from '../../services/dashboardService';
+import { CHART_CONFIG, RISK_LEVELS, RISK_COLORS } from '../../../utils/client/constants';
+import { dashboardService } from '../../../services/client/dashboardService';
 import './RiskChart.css';
 
 const RiskChart = ({ 

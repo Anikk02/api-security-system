@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Activity, AlertTriangle, Users, Zap } from 'lucide-react';
-import StatCard from '../../components/StatCard/StatCard';
-import TrafficChart from '../../components/TrafficChart/TrafficChart';
-import DecisionTable from '../../components/DecisionTable/DecisionTable';
-import ViolatorMap from '../../components/ViolatorMap/ViolatorMap';
-import RiskChart from '../../components/RiskChart/RiskChart';
-import { dashboardService } from '../../services/dashboardService';
-import { useWebSocket } from '../../hooks/useWebSocket';
+import StatCard from '../../../components/client/StatCard/StatCard';
+import TrafficChart from '../../../components/client/TrafficChart/TrafficChart';
+import DecisionTable from '../../../components/client/DecisionTable/DecisionTable';
+import ViolatorMap from '../../../components/client/ViolatorMap/ViolatorMap';
+import RiskChart from '../../../components/client/RiskChart/RiskChart';
+import { dashboardService } from '../../../services/client/dashboardService';
+import { useWebSocket } from '../../../hooks/client/useWebSocket';
 import toast from 'react-hot-toast';
 import './Dashboard.css';
 

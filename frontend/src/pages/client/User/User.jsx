@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Search, Shield, AlertTriangle, Clock, Ban, RefreshCw, Copy, ChevronRight, Activity, List } from 'lucide-react';
-import { dashboardService } from '../../services/dashboardService';
-import { userService } from '../../services/userService';
+import { dashboardService } from '../../../services/client/dashboardService';
+import { userService } from '../../../services/client/userService';
 import toast from 'react-hot-toast';
 import './User.css';
 

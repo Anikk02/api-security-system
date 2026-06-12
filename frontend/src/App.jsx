@@ -1,10 +1,10 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-import MainLayout from './layouts/MainLayout';
-import Dashboard from './pages/Dashboard/Dashboard';
-import Logs from './pages/Logs/Logs';
-import User from './pages/User/User';
+import MainLayout from './layouts/client/MainLayout';
+import Dashboard from './pages/client/Dashboard/Dashboard';
+import Logs from './pages/client/Logs/Logs';
+import User from './pages/client/User/User';
 import './App.css';
 
 const App = () => {

@@ -1,4 +1,4 @@
-import { WS_URL } from '../utils/constants';
+import { WS_URL } from '../../utils/client/constants';
 
 class WebSocketService {
   constructor() {
