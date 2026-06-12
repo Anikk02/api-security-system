@@ -11,7 +11,6 @@ os.makedirs(LOG_DIR, exist_ok=True)
 def setup_logging():
     root_logger = logging.getLogger()
 
-    # 🔥 Make this configurable (important for debugging vs production)
     log_level = os.getenv("LOG_LEVEL", "INFO").upper()
     root_logger.setLevel(log_level)
 
