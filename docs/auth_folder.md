@@ -121,26 +121,26 @@ src/
 │   │   ├── CopyButton.jsx
 │   │   └── CodeBlock.jsx
 │
-├── services/
+├── services/auth/
 │   ├── authApi.js
 │   ├── onboardingApi.js
 │
-├── hooks/
+├── hooks/auth/
 │   ├── useAuth.js
 │   ├── useOnboarding.js
 │
-├── context/
+├── context/auth/
 │   └── AuthContext.jsx
 │
-├── layouts/
+├── layouts/auth/
 │   ├── AuthLayout.jsx
 │   └── OnboardingLayout.jsx
 │
-├── utils/
+├── utils/auth/
 │   ├── validators.js
 │   └── token.js
 │
-└── routes/
+└── routes/auth/
     └── AuthRoutes.jsx
 ```
 
