@@ -2,7 +2,7 @@ import logging
 from concurrent_log_handler import ConcurrentRotatingFileHandler
 import os
 
-LOG_DIR = "logs"
+LOG_DIR = "logs_data"
 LOG_FILE = os.path.join(LOG_DIR, "app.log")
 
 os.makedirs(LOG_DIR, exist_ok=True)
