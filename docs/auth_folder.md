@@ -48,7 +48,7 @@ Security Engine
 
 ---
 
-## 📁 Folder Structure
+## 📁 Folder Structure (BACKEND)
 
 ```
 app/
@@ -90,6 +90,58 @@ app/
      |___ client.py
      |___ api_key.py
 └── main.py
+```
+## FOLDER STRUCTURE (FRONTEND)
+```text
+src/
+│
+├── pages/
+│   ├── auth/
+│   │   ├── Login.jsx
+│   │   ├── Register.jsx
+│   │   ├── ForgotPassword.jsx
+│   │   ├── ResetPassword.jsx
+│   │
+│   ├── onboarding/
+│   │   ├── Welcome.jsx
+│   │   ├── ApiKeySetup.jsx
+│   │   ├── IntegrationGuide.jsx
+│   │   └── Success.jsx
+│
+├── components/
+│   ├── auth/
+│   │   ├── LoginForm.jsx
+│   │   ├── RegisterForm.jsx
+│   │   ├── PasswordInput.jsx
+│   │   └── AuthLayout.jsx
+│   │
+│   ├── onboarding/
+│   │   ├── Stepper.jsx
+│   │   ├── ApiKeyCard.jsx
+│   │   ├── CopyButton.jsx
+│   │   └── CodeBlock.jsx
+│
+├── services/
+│   ├── authApi.js
+│   ├── onboardingApi.js
+│
+├── hooks/
+│   ├── useAuth.js
+│   ├── useOnboarding.js
+│
+├── context/
+│   └── AuthContext.jsx
+│
+├── layouts/
+│   ├── AuthLayout.jsx
+│   └── OnboardingLayout.jsx
+│
+├── utils/
+│   ├── validators.js
+│   └── token.js
+│
+└── routes/
+    └── AuthRoutes.jsx
 ```
 
 ---
