@@ -8,6 +8,7 @@ import Dashboard from './pages/client/Dashboard/Dashboard';
 import Logs from './pages/client/Logs/Logs';
 import User from './pages/client/User/User';
 import SettingsPage from './pages/client/settings/SettingsPage';
+import ActivityPage from './pages/client/activity/ActivityPage';
 import './App.css';
 
 const App = () => {
@@ -42,7 +43,7 @@ const App = () => {
           <Route index element={<Dashboard />} />
           <Route path="logs" element={<Logs />} />
           <Route path="users" element={<User />} />
-          <Route path="activity" element={<Dashboard />} />
+          <Route path="activity" element={<ActivityPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
 

@@ -1,0 +1,30 @@
+.activity-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+/* Title */
+.activity-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+/* Grid layout */
+.activity-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-lg);
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .activity-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Error */
+.error-text {
+  color: var(--accent-danger);
+}

@@ -7,15 +7,23 @@ class WebSocketService {
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 5;
     this.reconnectDelay = 3000;
+    this.shouldReconnect = true; // control reconnect
   }
 
   connect() {
+    // prevent multiple connections
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      return;
+    }
+
     try {
       this.ws = new WebSocket(WS_URL);
       
       this.ws.onopen = () => {
         console.log('WebSocket connected');
         this.reconnectAttempts = 0;
+        this.shouldReconnect = true;
+
         this.emit('connected', { connected: true });
         
         // Send heartbeat to keep connection alive
@@ -47,10 +55,15 @@ class WebSocketService {
       
       this.ws.onclose = () => {
         console.log('WebSocket disconnected');
+
+        this.emit('disconnected', {connected: false});
+
         if (this.heartbeatInterval) {
           clearInterval(this.heartbeatInterval);
         }
+        if (this.shouldReconnect) {
         this.attemptReconnect();
+        }
       };
     } catch (error) {
       console.error('WebSocket connection failed:', error);
@@ -96,6 +109,9 @@ class WebSocketService {
   }
 
   disconnect() {
+    // prevent reconnect loop
+    this.shouldReconnect = false;
+    
     if (this.ws) {
       this.ws.close();
     }
