@@ -567,7 +567,7 @@ async def send_warning(
         return {"success": False, "error": str(e)}
     
 
-@router.get("/activity", response_model=ActivityResponse)
+'''@router.get("/activity", response_model=ActivityResponse)
 async def get_activity(client=Depends(get_current_client), db=Depends(get_db)):
-    return await client_service.get_activity(db, client.id)
+    return await client_service.get_activity(db, client.id)'''
     
