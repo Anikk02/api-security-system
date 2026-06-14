@@ -69,7 +69,8 @@ class RequestMiddleware(BaseHTTPMiddleware):
             #
             blocked, risk_score, throttled = await StateManager.get_decision_signals(
                 identity.user_id, 
-                identity.ip_address  # Pass IP for block checking
+                identity.ip_address,  # Pass IP for block checking
+                identity.behavioral_fingerprint
             )
 
             # Determine action based on fast-path signals

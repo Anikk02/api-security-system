@@ -20,6 +20,29 @@ BLOCK_DURATIONS = {
     "hard": 60 * 60 * 12
 }
 
+# ---------------- SAFE PARSERS ---------------- #
+
+def _to_float(value, default=0.0):
+    if value is None:
+        return default
+    try:
+        if isinstance(value, bytes):
+            value = value.decode()
+        return float(value)
+    except:
+        return default
+
+
+def _to_int(value, default=0):
+    if value is None:
+        return default
+    try:
+        if isinstance(value, bytes):
+            value = value.decode()
+        return int(float(value)) # handles "0.0"
+    except:
+        return default
+
 
 # MAIN ENTRY - OPTIMIZED VERSION
 async def apply_penalty(identity, signals, risk_score: float, base_action: str):
@@ -36,7 +59,9 @@ async def apply_penalty(identity, signals, risk_score: float, base_action: str):
         ip = getattr(identity, "ip_address", "unknown")
         ua = getattr(signals, "user_agent", "")
 
-        fingerprint = _generate_fingerprint(ip, ua)
+        fingerprint = getattr(identity, "behavioral_fingerprint", None)
+        if not fingerprint:
+            fingerprint = _generate_fingerprint(ip, ua)
 
         # SINGLE pipeline for ALL reads
         pipe = redis_client.pipeline()
@@ -66,6 +91,7 @@ async def apply_penalty(identity, signals, risk_score: float, base_action: str):
         
         # Check if IP is already blocked
         pipe.exists(f"ip:{ip}:blocked")
+        pipe.exists(f"fp:{fingerprint}:blocked")
         
         # Execute all reads in ONE call
         results = await pipe.execute()
@@ -78,10 +104,14 @@ async def apply_penalty(identity, signals, risk_score: float, base_action: str):
         user_rep = float(results[4]) if results[4] else 0.0
         fp_rep = float(results[5]) if results[5] else 0.0
         ip_already_blocked = bool(results[6]) if len(results) > 6 else False
+        fp_already_blocked = bool(results[7]) if results[7] else False
 
         # Fast reject if IP is already blocked
         if ip_already_blocked:
             return "block", "IP is blocked", _meta(risk_score, 0)
+        
+        if fp_already_blocked:
+            return "block", "Fingerprint is blocked", _meta(risk_score, 0)
 
         combined_rep = _combine_reputation(ip_rep, user_rep, fp_rep)
 
@@ -198,6 +228,7 @@ async def _apply_updates_pipeline(ip, user_id, fingerprint, rep_keys, delta, sho
             duration = BLOCK_DURATIONS[block_severity]
             pipe.setex(f"user:{user_id}:blocked", duration, "1")
             pipe.setex(f"ip:{ip}:blocked", duration, "1")
+            pipe.setex(f"fp:{fingerprint}:blocked", duration, "1")
             #clear throttle flag if it exist
             pipe.delete(f"user:{user_id}:throttled")
         

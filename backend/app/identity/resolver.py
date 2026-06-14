@@ -13,6 +13,10 @@ class Identity:
         self.api_key = api_key
         self.is_anonymous = is_anonymous
 
+        # Derived attributes (attached later)
+        self.ip_address = None
+        self.behavioral_fingerprint = None
+
     
 async def resolve_identity(request: Request, db: AsyncSession) -> Identity:
     logger.info(f"[IDENTITY] Resolving for path={request.url.path}")
@@ -50,6 +54,9 @@ async def resolve_identity(request: Request, db: AsyncSession) -> Identity:
             )
 
             identity.ip_address = ip
+
+            identity.behavioral_fingerprint = _generate_behavioral_fingerprint(request, identity)
+
             return identity
 
         else:
@@ -70,6 +77,8 @@ async def resolve_identity(request: Request, db: AsyncSession) -> Identity:
 
     logger.info(f"[IDENTITY] Anonymous identity assigned user_id={fingerprint} ip={ip}")
 
+    identity.behavioral_fingerprint = _generate_behavioral_fingerprint(request, identity)
+
     return identity
 
 def _generate_anonymous_fingerprint(ip: str) -> int:
@@ -79,3 +88,19 @@ def _generate_anonymous_fingerprint(ip: str) -> int:
     hashed = hashlib.sha256(ip.encode()).hexdigest()
 
     return int(hashed[:16], 16) % (2**63 - 1)
+
+def _generate_behavioral_fingerprint(request: Request, identity: Identity) -> str:
+    """Generate a stable fingerprint based on headers + identity anchor
+    Does not include IP"""
+    ua = request.headers.get("user-agent", "")
+    accept_lang = request.headers.get("accept-language", "")
+    accept_enc = request.headers.get("accept-encoding", "")
+
+    #Strong anchor if API key exists
+    if identity.api_key:
+        api_hash = hashlib.sha256(identity.api_key.encode()).hexdigest()
+        raw = f"{api_hash}:{ua}:{accept_lang}:{accept_enc}"
+    else:
+        raw = f"{ua}:{accept_lang}:{accept_enc}"
+    
+    return hashlib.sha256(raw.encode()).hexdigest()
