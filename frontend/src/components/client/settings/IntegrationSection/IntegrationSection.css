@@ -1,0 +1,12 @@
+.code-block {
+  background: var(--bg-tertiary);
+  padding: var(--spacing-md);
+  border-radius: var(--radius-md);
+  margin-top: var(--spacing-md);
+  font-family: monospace;
+}
+
+.note {
+  margin-top: var(--spacing-sm);
+  color: var(--text-secondary);
+}
