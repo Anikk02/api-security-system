@@ -58,3 +58,26 @@ class UserDetailsResponse(BaseModel):
     current_risk_score: float
     recent_actions: List[dict]
     ip_history: List[str]
+
+# CLIENT ACTIVITY
+
+class ThreatEvent(BaseModel):
+    time: str
+    event: str
+    description: str
+    severity: str
+
+class DecisionTrendPoint(BaseModel):
+    time: str
+    allowed: str
+    throttled: str
+    blocked: str
+
+class EndpointActivity(BaseModel):
+    endpoint: str
+    percentage: int
+
+class ActivityResponse(BaseModel):
+    threat_timeline: List[ThreatEvent]
+    decision_trend: List[DecisionTrendPoint]
+    endpoint_distribution: List[EndpointActivity]
