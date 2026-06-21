@@ -16,7 +16,6 @@ class Identity:
         # Derived attributes (attached later)
         self.ip_address = None
         self.behavioral_fingerprint = None
-
     
 async def resolve_identity(request: Request, db: AsyncSession) -> Identity:
     logger.info(f"[IDENTITY] Resolving for path={request.url.path}")
@@ -34,7 +33,8 @@ async def resolve_identity(request: Request, db: AsyncSession) -> Identity:
             logger.debug(f"[IDENTITY] Direct client IP → ip={ip}")
 
     api_key = request.headers.get('X-API-KEY')
-
+    
+    #  AUTHENTICATED
     if api_key:
         logger.debug(f"[IDENTITY] API key received (masked) from ip={ip}")
 
@@ -88,6 +88,7 @@ def _generate_anonymous_fingerprint(ip: str) -> int:
     hashed = hashlib.sha256(ip.encode()).hexdigest()
 
     return int(hashed[:16], 16) % (2**63 - 1)
+
 
 def _generate_behavioral_fingerprint(request: Request, identity: Identity) -> str:
     """Generate a stable fingerprint based on headers + identity anchor

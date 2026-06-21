@@ -43,7 +43,6 @@ def _to_int(value, default=0):
     except:
         return default
 
-
 # MAIN ENTRY - OPTIMIZED VERSION
 async def apply_penalty(identity, signals, risk_score: float, base_action: str):
     """
@@ -58,12 +57,13 @@ async def apply_penalty(identity, signals, risk_score: float, base_action: str):
         user_id = identity.user_id
         ip = getattr(identity, "ip_address", "unknown")
         ua = getattr(signals, "user_agent", "")
-
+        
+        # Use identity fingerprint
         fingerprint = getattr(identity, "behavioral_fingerprint", None)
         if not fingerprint:
             fingerprint = _generate_fingerprint(ip, ua)
 
-        # SINGLE pipeline for ALL reads
+        # ✅ SINGLE pipeline for ALL reads
         pipe = redis_client.pipeline()
         
         now = time.time()
@@ -125,12 +125,12 @@ async def apply_penalty(identity, signals, risk_score: float, base_action: str):
             1.0
         )
 
-        # Determine action with FULL explanation
+        # ✅ Determine action with FULL explanation
         action, reason, delta, should_block, block_severity = _determine_action_with_explanation(
             adjusted_risk, combined_rep, violation_count, risk_score, req_count, error_count
         )
         
-        # SINGLE pipeline for ALL writes (fire and forget)
+        # ✅ SINGLE pipeline for ALL writes (fire and forget)
         asyncio.create_task(_apply_updates_pipeline(
             ip, user_id, fingerprint, rep_keys, 
             delta,should_block, block_severity, action, adjusted_risk

@@ -19,9 +19,11 @@ async def safe_redis_call(coro):
 
 class StateManager:
 
+    # ─────────────────────────────────────────────────────────────
     # FAST DECISION PATH (single Redis round-trip)
+    # ─────────────────────────────────────────────────────────────
     @staticmethod
-    async def get_decision_signals(user_id: int, ip: str = None):
+    async def get_decision_signals(user_id: int, ip: str = None, fingerprint: str = None):
         pipe = redis_client.pipeline()
 
         pipe.exists(f"user:{user_id}:blocked")
@@ -32,6 +34,10 @@ class StateManager:
         # IP Block Check
         if ip:
             pipe.exists(f"ip:{ip}:blocked")
+        
+        if fingerprint:
+            pipe.exists(f"fp:{fingerprint}:blocked")
+            pipe.get(f"rep:fp:{fingerprint}")
         try:
             results = await pipe.execute()
 
@@ -39,10 +45,32 @@ class StateManager:
             risk_raw = results[1]
             user_throttled = bool(results[2])
 
-            ip_blocked = bool(results[3]) if ip and len(results) > 3 else False
+            idx = 3
+            ip_blocked = False
+            fp_blocked = False
+            fp_rep = 0.0
+
+            if ip:
+                ip_blocked = bool(results[idx])
+                idx += 1
+            if fingerprint:
+                fp_blocked = bool(results[idx])
+                idx += 1
+                
+                if len(results) > idx:
+                    fp_rep_raw = results[idx]
+                    idx += 1
+
+                    if fp_rep_raw:
+                        try:
+                            val = fp_rep_raw.decode() if isinstance(fp_rep_raw, bytes) else fp_rep_raw
+                            fp_rep = float(val)
+                        except:
+                            fp_rep = 0.0
+
 
             #Combine block status
-            blocked = user_blocked or ip_blocked
+            blocked = user_blocked or ip_blocked or fp_blocked
             throttled = user_throttled
 
             risk_score = 0.0
@@ -52,13 +80,17 @@ class StateManager:
                     risk_score = float(val)
                 except Exception:
                     risk_score = 0.0
+            risk_score = min(1.0, risk_score + (fp_rep * 0.2))
+
             return blocked, risk_score, throttled
         
         except Exception as e:
             logger.error(f"get_decision_signals pipeline failed: {e}")
             return False, 0.0, False
 
+    # ─────────────────────────────────────────────────────────────
     # REQUEST TRACKING (ZSET-based sliding window)
+    # ─────────────────────────────────────────────────────────────
     @staticmethod
     async def track_request_async(user_id: int, endpoint: str, ip: str, status_code: int | None):
         ts = time.time()
@@ -92,7 +124,9 @@ class StateManager:
         except Exception as e:
             logger.error(f"track_request_async pipeline failed: {e}")
 
+    # ─────────────────────────────────────────────────────────────
     # DELETE
+    # ─────────────────────────────────────────────────────────────
     @staticmethod
     async def delete(key: str):
         try:
@@ -100,7 +134,9 @@ class StateManager:
         except Exception as e:
             logger.error(f"Redis DELETE failed: {e}")
 
+    # ─────────────────────────────────────────────────────────────
     # RATE LIMITING (SINGLE SOURCE OF TRUTH: ZSET)
+    # ─────────────────────────────────────────────────────────────
     @staticmethod
     async def get_request_count(user_id: int, window: int):
         now = time.time()
@@ -119,7 +155,9 @@ class StateManager:
         count = await StateManager.get_request_count(user_id, WINDOW_SIZE)
         return count > MAX_REQUESTS
 
+    # ─────────────────────────────────────────────────────────────
     # BLOCK MANAGEMENT (CAP: 12 HOURS MAX TTL)
+    # ─────────────────────────────────────────────────────────────
     @staticmethod
     async def block_user(user_id: int, duration: int = 3600):
         max_ttl = 60 * 60 * 12  # 12 hours
@@ -141,12 +179,21 @@ class StateManager:
             "1",
             ex=duration
         )
+    
+    @staticmethod
+    async def block_fingerprint(fingerprint: str, duration: int = 3600):
+        max_ttl = 60 * 60 * 12
+        duration = min(duration, max_ttl)
+
+        await redis_client.set(f"fp:{fingerprint}:blocked", "1", ex=duration)
 
     @staticmethod
     async def is_blocked(user_id: int) -> bool:
         return await redis_client.exists(f"user:{user_id}:blocked") == 1
 
+    # ─────────────────────────────────────────────────────────────
     # FEATURE BUILDING
+    # ─────────────────────────────────────────────────────────────
     @staticmethod
     async def get_recent_endpoints(user_id: int, window: int):
         try:
@@ -183,7 +230,9 @@ class StateManager:
 
         return [score for _, score in data]
 
+    # ─────────────────────────────────────────────────────────────
     # ERROR TRACKING (TTL ALIGNED WITH WINDOW)
+    # ─────────────────────────────────────────────────────────────
     @staticmethod
     async def get_error_count(user_id: int, window: int):
         val = await redis_client.get(f"user:{user_id}:errors")
@@ -195,7 +244,9 @@ class StateManager:
         await redis_client.incr(key)
         await redis_client.expire(key, WINDOW_SIZE)
 
+    # ─────────────────────────────────────────────────────────────
     # IP BEHAVIOR (SESSION-BASED)
+    # ─────────────────────────────────────────────────────────────
     @staticmethod
     async def get_ip_change_count(user_id: int, window: int):
         key = f"user:{user_id}:ips"
@@ -208,7 +259,9 @@ class StateManager:
         await redis_client.sadd(key, ip)
         await redis_client.expire(key, 300)
 
+    # ─────────────────────────────────────────────────────────────
     # VIOLATIONS (WINDOW-ALIGNED)
+    # ─────────────────────────────────────────────────────────────
     @classmethod
     async def increment_violation(cls, user_id: int):
         key = f"user:{user_id}:violations"
@@ -221,7 +274,9 @@ class StateManager:
         val = await redis_client.get(f"user:{user_id}:violations")
         return int(val) if val else 0
 
+    # ─────────────────────────────────────────────────────────────
     # GENERIC HELPERS
+    # ─────────────────────────────────────────────────────────────
     @staticmethod
     async def get(key: str):
         try:
@@ -240,8 +295,3 @@ class StateManager:
                 await redis_client.set(key, value)
         except Exception as e:
             logger.error(f"Redis SET failed: {e}")
-
-    # UTILITY
-    @staticmethod
-    def fingerprint(ip: str, ua: str) -> str:
-        return hashlib.sha256(f"{ip}:{ua}".encode()).hexdigest()

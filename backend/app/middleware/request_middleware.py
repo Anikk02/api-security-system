@@ -54,7 +54,7 @@ class RequestMiddleware(BaseHTTPMiddleware):
                 response.headers["X-Request-UUID"] = request.state.request_uuid
                 return response
             
-            # 1. IDENTITY + SIGNALS
+            # ── 1. IDENTITY + SIGNALS (cheap) ─────────────────────────────
             from app.db.session import AsyncSessionLocal
             async with AsyncSessionLocal() as db:
                 identity = await resolve_identity(request, db)
@@ -62,21 +62,21 @@ class RequestMiddleware(BaseHTTPMiddleware):
             signals = await extract_signals(request)
             label = request.headers.get("X-Simulated-Label")
 
-            # 3. FAST-PATH DECISION (1 Redis pipeline - 2 reads)
+            # ── 3. FAST-PATH DECISION (1 Redis pipeline - 2 reads) ────────
             #
-            # Pass IP for IP block checking
-            # checks BOTH user and IP blocks in a single pipeline
+            # ✅ FIX: Pass IP for IP block checking
+            # This now checks BOTH user and IP blocks in a single pipeline
             #
             blocked, risk_score, throttled = await StateManager.get_decision_signals(
                 identity.user_id, 
-                identity.ip_address,  # Pass IP for block checking
+                identity.ip_address,  # ✅ Pass IP for block checking
                 identity.behavioral_fingerprint
             )
 
             # Determine action based on fast-path signals
             action, reason = await _fast_decision(blocked, throttled, risk_score)
 
-            # 4. TRACK THIS REQUEST (fire-and-forget pipeline)
+            # ── 4. TRACK THIS REQUEST (fire-and-forget pipeline) ──────────
             # One pipelined ZADD+SADD. Does NOT block the response.
             asyncio.ensure_future(
                 StateManager.track_request_async(
@@ -87,7 +87,7 @@ class RequestMiddleware(BaseHTTPMiddleware):
                 )
             )
 
-            # 5. BLOCK FAST PATH
+            # ── 5. BLOCK FAST PATH ────────────────────────────────────────
             if action == "block":
                 # Kick off background to still log + update reputation
                 asyncio.ensure_future(
@@ -114,7 +114,7 @@ class RequestMiddleware(BaseHTTPMiddleware):
                     }
                 )
 
-            # 6. RATE LIMITING CHECK (Sliding Window)
+            # ── 6. RATE LIMITING CHECK (Sliding Window) ───────────────────────────────────────────────
             limiter = strict_limiter if risk_score > 0.6 else minute_limiter
             allowed, count, retry_after = await limiter.check_and_allow(
                 f"user:{identity.user_id}"
@@ -190,7 +190,7 @@ class RequestMiddleware(BaseHTTPMiddleware):
                 
                 return response
 
-            # 7. NORMAL FLOW
+            # ── 7. NORMAL FLOW ────────────────────────────────────────────
             response = await call_next(request)
             process_time = time.time() - start_time
 
@@ -203,7 +203,7 @@ class RequestMiddleware(BaseHTTPMiddleware):
             response.headers["X-Request-UUID"] = request.state.request_uuid
             response.headers["X-Process-Time"] = f"{process_time:.4f}"
 
-            # 8. BACKGROUND ANALYSIS
+            # ── 8. BACKGROUND ANALYSIS ────────────────────────────────────
             # Runs AFTER response is sent. Updates risk_score, reputation,
             # feature log, DB — all invisible to this request's latency.
             asyncio.ensure_future(
@@ -228,12 +228,19 @@ class RequestMiddleware(BaseHTTPMiddleware):
             )
 
 
-# FAST DECISION LOGIC
+# ── FAST DECISION LOGIC ────────────────────────────────────────────────────────
+#
 # This is the ONLY decision logic in the hot path.
-# Reads pre-computed Redis signals.
+# Reads pre-computed Redis signals. No math, no loops, no DB.
+#
 async def _fast_decision(blocked: bool, throttled: bool, risk_score: float) -> tuple[str, str]:
     """
     Returns (action, reason) using only pre-computed Redis signals.
+
+    Args:
+        blocked: User or IP is blocked
+        throttled: User is in throttle state
+        risk_score: Pre-computed risk score from previous analysis
     """
     
     # Highest priority: Blocked users
