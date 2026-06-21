@@ -18,6 +18,9 @@ from app.db.models import (
 
 # Import API routes
 from app.api.routes import dashboard
+#from app.api.routes.activity import router as activity_router
+#from app.api.routes.settings import router as settings_router
+#from app.api.routes.usage import router as usage_router
 
 
 #Setup logging
@@ -59,6 +62,9 @@ app.add_middleware(
 
 # Include API routes
 app.include_router(dashboard.router)
+#app.include_router(activity_router)
+#app.include_router(usage_router)
+#app.include_router(settings_router)
 
 #Add middleware
 app.add_middleware(RequestMiddleware)
