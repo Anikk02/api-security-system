@@ -1,0 +1,16 @@
+.spike-correlation {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.correlation-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+}
+
+.correlation-sub {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}

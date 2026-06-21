@@ -6,14 +6,17 @@ import MainLayout from './layouts/client/MainLayout';
 
 import Dashboard from './pages/client/Dashboard/Dashboard';
 import Logs from './pages/client/Logs/Logs';
-import User from './pages/client/User/User';
+import Users from './pages/client/User/User';
 import SettingsPage from './pages/client/settings/SettingsPage';
 import ActivityPage from './pages/client/activity/ActivityPage';
+import UsagePage from './pages/client/Usage/UsagePage';
+
 import './App.css';
 
 const App = () => {
   return (
     <Router>
+      {/* 🔔 Global Toast System */}
       <Toaster
         position="top-right"
         reverseOrder={false}
@@ -38,16 +41,18 @@ const App = () => {
           },
         }}
       />
+
       <Routes>
         <Route path="/" element={<MainLayout />}>
           <Route index element={<Dashboard />} />
           <Route path="logs" element={<Logs />} />
-          <Route path="users" element={<User />} />
+          <Route path="users" element={<Users />} />
           <Route path="activity" element={<ActivityPage />} />
           <Route path="settings" element={<SettingsPage />} />
+          <Route path="usage" element={<UsagePage />} />
         </Route>
 
-        {/* Fallback Route */}
+        {/* 🔁 Fallback Route */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>

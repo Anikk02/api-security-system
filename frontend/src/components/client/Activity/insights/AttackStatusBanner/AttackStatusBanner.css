@@ -1,0 +1,52 @@
+.attack-banner {
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+  border: 1px solid var(--border-color);
+  transition: var(--transition-normal);
+}
+
+/* 🟢 Normal */
+.attack-banner.normal {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: var(--accent-success);
+}
+
+/* 🟡 Warning */
+.attack-banner.warning {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: var(--accent-warning);
+}
+
+/* 🔴 Attack */
+.attack-banner.attack {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: var(--accent-danger);
+  box-shadow: var(--shadow-glow);
+}
+
+/* Content */
+.banner-content {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.banner-icon {
+  font-size: 1.5rem;
+}
+
+.banner-title {
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+.banner-sub {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+/* 🔥 Optional subtle animation */
+.attack-banner.attack {
+  animation: pulse 2s infinite;
+}

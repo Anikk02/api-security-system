@@ -1,0 +1,48 @@
+.top-users {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.user-card {
+  background: #111827;
+  border-radius: 10px;
+  padding: 12px;
+  border: 1px solid #1f2937;
+}
+
+.user-info {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.user-id {
+  font-size: 14px;
+  color: #9ca3af;
+}
+
+.user-requests {
+  font-size: 14px;
+  font-weight: 600;
+  color: #e5e7eb;
+}
+
+.user-bar {
+  height: 6px;
+  background: #1f2937;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.user-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981, #34d399);
+  border-radius: 6px;
+  transition: width 0.3s ease;
+}
+
+.usage-empty {
+  color: #9ca3af;
+  font-size: 14px;
+}

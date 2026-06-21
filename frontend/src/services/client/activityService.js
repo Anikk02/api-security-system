@@ -1,5 +1,5 @@
 import axios from "axios";
-import { mockActivityData } from "../../utils/client/mockActivityData";
+import  mockActivityData  from "../../utils/client/mockActivityData";
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 

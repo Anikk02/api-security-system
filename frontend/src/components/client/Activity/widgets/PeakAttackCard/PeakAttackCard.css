@@ -1,0 +1,56 @@
+.peak-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  transition: var(--transition-normal);
+}
+
+.peak-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* 🔥 Severe Highlight */
+.peak-card.severe {
+  border-color: var(--accent-danger);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* Value */
+.peak-value {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.peak-time {
+  font-size: 1rem;
+  color: var(--text-secondary);
+}
+
+.peak-count {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+/* Meta */
+.peak-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.peak-badge {
+  background: rgba(239, 68, 68, 0.2);
+  color: var(--accent-danger);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+/* Subtext */
+.peak-sub {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}

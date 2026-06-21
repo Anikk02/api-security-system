@@ -1,0 +1,71 @@
+.risk-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.risk-value {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.risk-label {
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+}
+
+/* 🔥 Levels */
+.risk-label.low {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--accent-success);
+}
+
+.risk-label.moderate {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--accent-warning);
+}
+
+.risk-label.high {
+  background: rgba(239, 68, 68, 0.2);
+  color: var(--accent-danger);
+}
+
+.risk-score {
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+/* 📊 Progress Bar */
+.risk-bar {
+  width: 100%;
+  height: 8px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.risk-fill {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+/* Color fill */
+.risk-fill.low {
+  background: var(--accent-success);
+}
+
+.risk-fill.moderate {
+  background: var(--accent-warning);
+}
+
+.risk-fill.high {
+  background: var(--accent-danger);
+}
+
+.risk-sub {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}

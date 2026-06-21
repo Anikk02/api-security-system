@@ -31,3 +31,21 @@
   line-height: 1.6;
   color: var(--text-tertiary);
 }
+
+.settings-header {
+  margin-bottom: 16px;
+}
+
+.settings-subtitle {
+  font-size: 14px;
+  color: #9ca3af;
+}
+
+.warning-text {
+  margin: 10px 0;
+  padding: 8px 12px;
+  background: rgba(250, 204, 21, 0.1);
+  color: #facc15;
+  border-radius: 6px;
+  font-size: 13px;
+}

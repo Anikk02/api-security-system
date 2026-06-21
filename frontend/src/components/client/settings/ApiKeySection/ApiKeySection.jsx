@@ -1,19 +1,26 @@
 import React, { useState } from 'react';
 import ConfirmModal from '../../../shared/Modal/ConfirmModal';
 import toast from 'react-hot-toast';
+import { Copy, Eye, EyeOff } from 'lucide-react';
 
 import './ApiKeySection.css';
 
-function ApiKeySection({ apiKey, onRegenerate }) {
+function ApiKeySection({ apiKey, onRegenerate, createdAt, isActive = true }) {
   const [copied, setCopied] = useState(false);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [show, setShow] = useState(false);
+
+  const safeKey = apiKey || "No API key available";
 
   const handleCopy = () => {
+    if (!apiKey) return;
+
     navigator.clipboard.writeText(apiKey);
     setCopied(true);
     toast.success("API key copied");
-    setTimeout(() => setCopied(false), 2000);
+
+    setTimeout(() => setCopied(false), 1500);
   };
 
   const handleConfirm = async () => {
@@ -23,10 +30,7 @@ function ApiKeySection({ apiKey, onRegenerate }) {
     try {
       const res = await onRegenerate();
       toast.success("API Key regenerated");
-
-      // Optional: show once (you can remove later)
-      console.log("New Key:", res.api_key);
-
+      console.log("New Key:", res?.api_key);
     } catch (err) {
       console.error(err);
       toast.error("Failed to regenerate key");
@@ -39,24 +43,46 @@ function ApiKeySection({ apiKey, onRegenerate }) {
     <div className="card">
       <h2>🔑 API Key</h2>
 
+      {/* Meta Info */}
+      <div className="api-meta">
+        <span className={`status ${isActive ? "active" : "revoked"}`}>
+          {isActive ? "🟢 Active" : "🔴 Revoked"}
+        </span>
+
+        {createdAt && (
+          <span className="created-at">
+            Created: {new Date(createdAt).toLocaleDateString()}
+          </span>
+        )}
+      </div>
+
+      {/* Key Display */}
       <div className="api-key-box">
-        <code>{apiKey}</code>
+        <code>
+          {show ? safeKey : maskKey(safeKey)}
+        </code>
+
+        <div className="icon-actions">
+          <button onClick={() => setShow(!show)}>
+            {show ? <EyeOff size={16} /> : <Eye size={16} />}
+          </button>
+
+          <button onClick={handleCopy}>
+            <Copy size={16} className={copied ? "copied" : ""} />
+          </button>
+        </div>
       </div>
 
-      <div className="api-actions">
-        <button className="btn" onClick={handleCopy}>
-          {copied ? 'Copied' : 'Copy'}
-        </button>
+      {/* Regenerate */}
+      <button
+        className="btn danger"
+        onClick={() => setOpen(true)}
+        disabled={loading}
+      >
+        {loading ? 'Regenerating...' : '🔄 Regenerate API Key'}
+      </button>
 
-        <button
-          className="btn danger"
-          onClick={() => setOpen(true)}
-          disabled={loading}
-        >
-          {loading ? 'Regenerating...' : 'Regenerate'}
-        </button>
-      </div>
-
+      {/* Confirm Modal */}
       <ConfirmModal
         open={open}
         onClose={() => setOpen(false)}
@@ -66,6 +92,14 @@ function ApiKeySection({ apiKey, onRegenerate }) {
       />
     </div>
   );
+}
+
+// 🔐 Mask helper
+function maskKey(key) {
+  if (!key || key === "No API key available") return key;
+
+  const visible = 6;
+  return key.slice(0, visible) + "****" + key.slice(-4);
 }
 
 export default ApiKeySection;

@@ -11,7 +11,7 @@ class WebSocketService {
   }
 
   connect() {
-    // prevent multiple connections
+    // preven multiple connections
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       return;
     }
@@ -61,6 +61,7 @@ class WebSocketService {
         if (this.heartbeatInterval) {
           clearInterval(this.heartbeatInterval);
         }
+        // Only reconnect if allowed
         if (this.shouldReconnect) {
         this.attemptReconnect();
         }
@@ -111,10 +112,11 @@ class WebSocketService {
   disconnect() {
     // prevent reconnect loop
     this.shouldReconnect = false;
-    
+
     if (this.ws) {
       this.ws.close();
     }
+    
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
     }

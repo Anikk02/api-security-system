@@ -1,0 +1,46 @@
+.insights-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-lg);
+  margin: var(--spacing-xl) 0;
+}
+
+.insight-card {
+  transition: var(--transition-normal);
+}
+
+.insight-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
+
+.insight-value {
+  font-size: 1.4rem;
+  font-weight: 600;
+  margin: var(--spacing-sm) 0;
+}
+
+.insight-sub {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+/* 🔥 Risk Coloring */
+.risk-high {
+  border-color: var(--accent-danger);
+}
+
+.risk-moderate {
+  border-color: var(--accent-warning);
+}
+
+.risk-low {
+  border-color: var(--accent-success);
+}
+
+/* 📱 Responsive */
+@media (max-width: 768px) {
+  .insights-row {
+    grid-template-columns: 1fr;
+  }
+}

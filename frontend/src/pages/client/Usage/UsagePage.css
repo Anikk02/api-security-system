@@ -1,0 +1,39 @@
+.usage-container {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.usage-summary {
+  display: flex;
+  gap: 16px;
+}
+
+.usage-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.usage-endpoints {
+  margin-top: 10px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .usage-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .usage-summary {
+    flex-direction: column;
+  }
+}
+
+.usage-section-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #9ca3af;
+  margin: 10px 0 6px;
+}

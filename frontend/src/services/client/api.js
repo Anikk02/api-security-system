@@ -22,8 +22,23 @@ api.interceptors.request.use(
 // Response interceptor
 api.interceptors.response.use(
   (response) => response.data,
+
   (error) => {
-    console.error('API Error:', error.response?.data || error.message);
+    // 🔴 Server responded (real API error)
+    if (error.response) {
+      console.error("API Error:", error.response.data);
+    }
+
+    // ⚠️ No response → backend down / network issue
+    else if (error.request) {
+      console.warn("⚠️ Backend not reachable (using fallback)");
+    }
+
+    // ❗ Unexpected error
+    else {
+      console.error("Unexpected Error:", error.message);
+    }
+
     return Promise.reject(error);
   }
 );

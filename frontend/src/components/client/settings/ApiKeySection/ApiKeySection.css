@@ -22,3 +22,56 @@
 .btn.danger {
   background: var(--accent-danger);
 }
+
+.api-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+.status.active {
+  color: #22c55e;
+}
+
+.status.revoked {
+  color: #ef4444;
+}
+
+.created-at {
+  font-size: 12px;
+}
+
+.api-key-box {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #1f2937;
+  padding: 10px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.icon-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.icon-actions button {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #d1d5db;
+}
+
+.icon-actions button:hover {
+  color: white;
+}
+
+/* Copy animation */
+.copied {
+  color: #22c55e;
+  transform: scale(1.2);
+  transition: all 0.2s ease;
+}

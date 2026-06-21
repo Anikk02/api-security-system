@@ -23,41 +23,40 @@ function SettingsPage() {
     );
   }
 
-  if (error) {
-    return (
-      <div className="settings-container">
-        <p className="error-text">{error}</p>
-      </div>
-    );
-  }
-
-  if (!data) {
-    return (
-      <div className="settings-container empty-state">
-        <h2>⚙️ Settings Not Available</h2>
-        <p>
-            Settings will be available after authentication and onboarding are completed.
-        </p>
-      </div>
-    );
-  }
+  const apiKey = data?.api_key?.masked;
+  const createdAt = data?.api_key?.created_at;
+  const isActive = data?.api_key?.is_active;
 
   return (
     <div className="settings-container animate-fade-in">
-      <h1 className="settings-title">Settings</h1>
 
-      <ApiKeySection
-        apiKey={data.api_key?.masked}
-        onRegenerate={regenerateKey}
-      />
+      <div className="settings-header">
+        <h1 className="settings-title">⚙️ Settings</h1>
+        <p className="settings-subtitle">
+          Manage your API access and account configuration
+        </p>
+      </div>
+
+      {error && (
+        <p className="warning-text">
+          ⚠️ Showing demo data (backend offline)
+        </p>
+      )}
 
       <ProfileSection
-        email={data.profile?.email}
+        profile={data?.profile}
         onSave={updateProfile}
       />
 
+      <ApiKeySection
+        apiKey={apiKey}
+        createdAt={createdAt}
+        isActive={isActive}
+        onRegenerate={regenerateKey}
+      />
+
       <IntegrationSection
-        apiKey={data.api_key?.masked}
+        apiKey={apiKey}
       />
     </div>
   );
