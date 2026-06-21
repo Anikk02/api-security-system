@@ -20,7 +20,6 @@ from app.db.models.warning_log import WarningLog
 from app.risk.risk_engine import get_adaptive_thresholds
 from app.state.state_manager import StateManager
 from app.client import service as client_service
-from app.schemas.dashboard import ActivityResponse
 
 logger = logging.getLogger(__name__)
 
@@ -565,9 +564,4 @@ async def send_warning(
     except Exception as e:
         logger.error(f"Failed to send warning to user {user_id}: {e}")
         return {"success": False, "error": str(e)}
-    
 
-'''@router.get("/activity", response_model=ActivityResponse)
-async def get_activity(client=Depends(get_current_client), db=Depends(get_db)):
-    return await client_service.get_activity(db, client.id)'''
-    
