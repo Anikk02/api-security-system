@@ -22,9 +22,15 @@ from app.state.state_manager import StateManager
 from app.state.redis_client import redis_client
 from app.policy.penalty_manager import BLOCK_DURATIONS
 
+from app.authentication.dependencies import require_active_client
+
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/dashboard", tags=["Dashboard"])
+router = APIRouter(
+    prefix="/api/dashboard",
+    tags=["Dashboard"],
+    dependencies=[Depends(require_active_client)]
+)
 
 @router.get("/stats", response_model=DashboardStatsResponse)
 async def get_dashboard_stats(db: AsyncSession = Depends(get_db)):

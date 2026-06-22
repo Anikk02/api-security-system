@@ -13,11 +13,13 @@ from app.websocket.manager import websocket_manager
 # Import all models to ensure they're created
 from app.db.models import (
     user, api_key, request_log, decision_log, 
-    feature_log, ml_prediction, feedback
+    feature_log, ml_prediction, feedback,
+    client, refresh_token, password_reset_token
 )
 
 # Import API routes
-from app.api.routes import dashboard
+from app.api.routes import dashboard, api_keys
+from app.authentication.routes import router as auth_router
 
 
 #Setup logging
@@ -59,6 +61,8 @@ app.add_middleware(
 
 # Include API routes
 app.include_router(dashboard.router)
+app.include_router(auth_router)
+app.include_router(api_keys.router)
 
 #Add middleware
 app.add_middleware(RequestMiddleware)

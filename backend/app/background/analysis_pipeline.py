@@ -177,6 +177,17 @@ async def _log_to_db(
 
     try:
         async with AsyncSessionLocal() as db:
+            # Update API key last_used_at timestamp if request used one
+            if identity.api_key:
+                from sqlalchemy import update
+                from app.db.models.api_key import APIKey
+                from datetime import datetime
+                await db.execute(
+                    update(APIKey)
+                    .where(APIKey.key == identity.api_key)
+                    .values(last_used_at=datetime.utcnow())
+                )
+
             request_log = RequestLog(
                 user_id=user_id,
                 endpoint=signals.endpoint,

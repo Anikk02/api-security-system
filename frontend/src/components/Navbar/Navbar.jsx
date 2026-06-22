@@ -1,8 +1,12 @@
 import React from 'react';
 import { Menu, Bell, User, Shield, Zap } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 import './Navbar.css';
 
 const Navbar = ({ onMenuClick }) => {
+  const { user } = useAuth();
+  const displayName = user?.company_name || user?.email?.split('@')[0] || 'Client';
+
   return (
     <nav className="navbar">
       <div className="navbar__left">
@@ -25,7 +29,7 @@ const Navbar = ({ onMenuClick }) => {
         </button>
         <button className="navbar__user">
           <User size={20} />
-          <span className="navbar__user-name">Admin</span>
+          <span className="navbar__user-name">{displayName}</span>
         </button>
       </div>
     </nav>

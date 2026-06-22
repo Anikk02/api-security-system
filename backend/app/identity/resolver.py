@@ -40,7 +40,7 @@ async def resolve_identity(request: Request, db: AsyncSession) -> Identity:
 
         api_key_obj = result.scalar_one_or_none()
 
-        if api_key_obj:
+        if api_key_obj and api_key_obj.is_active:
             logger.info(f"[IDENTITY] Authenticated user_id={api_key_obj.user_id} ip={ip}")
 
             identity = Identity(
@@ -51,6 +51,9 @@ async def resolve_identity(request: Request, db: AsyncSession) -> Identity:
 
             identity.ip_address = ip
             return identity
+
+        elif api_key_obj and not api_key_obj.is_active:
+            logger.warning(f"[IDENTITY] Disabled API key from ip={ip}, falling back to anonymous")
 
         else:
             logger.warning(f"[IDENTITY] Invalid API key from ip={ip}, falling back to anonymous")

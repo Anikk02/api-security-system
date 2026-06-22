@@ -7,15 +7,21 @@ import {
   Settings, 
   Shield,
   Activity,
-  X
+  LogOut,
+  X,
+  Key
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 import './Sidebar.css';
 
 const Sidebar = ({ isOpen, onClose }) => {
+  const { logout } = useAuth();
+  
   const menuItems = [
     { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/logs', icon: FileText, label: 'Logs' },
     { path: '/users', icon: Users, label: 'Users' },
+    { path: '/api-keys', icon: Key, label: 'API Keys' },
     { path: '/activity', icon: Activity, label: 'Activity' },
     { path: '/settings', icon: Settings, label: 'Settings' },
   ];
@@ -51,6 +57,13 @@ const Sidebar = ({ isOpen, onClose }) => {
             </NavLink>
           ))}
         </nav>
+        
+        <div className="sidebar__footer">
+          <button className="sidebar__logout-btn" onClick={() => logout()}>
+            <LogOut size={20} />
+            <span>Logout</span>
+          </button>
+        </div>
       </aside>
     </>
   );

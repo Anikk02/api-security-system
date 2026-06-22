@@ -116,3 +116,28 @@
     display: none;
   }
 }
+
+.sidebar__footer {
+  padding: var(--spacing-lg) var(--spacing-xl);
+  border-top: 1px solid var(--border-color);
+  margin-top: auto;
+}
+
+.sidebar__logout-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  width: 100%;
+  padding: var(--spacing-sm) 0;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color var(--transition-fast);
+}
+
+.sidebar__logout-btn:hover {
+  color: var(--accent-danger);
+}
