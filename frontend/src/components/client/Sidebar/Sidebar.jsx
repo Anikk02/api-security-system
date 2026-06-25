@@ -8,6 +8,7 @@ import {
   Shield,
   Activity,
   BarChart3,
+  KeyRound,
   X
 } from 'lucide-react';
 import './Sidebar.css';
@@ -19,6 +20,7 @@ const Sidebar = ({ isOpen, onClose }) => {
     { path: '/users', icon: Users, label: 'Users' },
     { path: '/activity', icon: Activity, label: 'Activity' },
     { path: '/usage', icon: BarChart3, label: 'Usage'},
+    { path: '/api-keys', icon: KeyRound, label: 'API Keys' },
     { path: '/settings', icon: Settings, label: 'Settings' },
   ];
 

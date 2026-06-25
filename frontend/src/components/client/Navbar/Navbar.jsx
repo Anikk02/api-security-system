@@ -1,8 +1,12 @@
 import React from 'react';
-import { Menu, Bell, User, Shield, Zap } from 'lucide-react';
+import { Menu, Bell, User, Shield, Zap, LogOut } from 'lucide-react';
+import { useAuth } from '../../../context/AuthContext';
 import './Navbar.css';
 
 const Navbar = ({ onMenuClick }) => {
+  const { user, logout } = useAuth();
+  const displayName = user?.company_name || user?.email || 'Account';
+
   return (
     <nav className="navbar">
       <div className="navbar__left">
@@ -23,9 +27,12 @@ const Navbar = ({ onMenuClick }) => {
         <button className="navbar__icon-btn">
           <Bell size={20} />
         </button>
-        <button className="navbar__user">
+        <button className="navbar__user" title={displayName}>
           <User size={20} />
-          <span className="navbar__user-name">Admin</span>
+          <span className="navbar__user-name">{displayName}</span>
+        </button>
+        <button className="navbar__icon-btn" onClick={logout} title="Log out">
+          <LogOut size={20} />
         </button>
       </div>
     </nav>

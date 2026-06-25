@@ -1,17 +1,16 @@
 import React from 'react';
-import MainLayout from '../../../layouts/client/MainLayout';
 
-import ApiKeySection from '../../../components/client/settings/ApiKeySection/ApiKeySection';
-import ProfileSection from '../../../components/client/settings/ProfileSection/ProfileSection';
-import IntegrationSection from '../../../components/client/settings/IntegrationSection/IntegrationSection';
+import ProfileSection from '../../../components/client/settings/ProfileSection';
+import PreferencesSection from '../../../components/client/settings/PreferencesSection';
+import SecuritySection from '../../../components/client/settings/SecuritySection';
 
 import { useSettings } from '../../../hooks/client/useSettings';
 import SkeletonCard from '../../../components/shared/Skeleton/SkeletonCard';
 
-import './SettingsPage.css';
+import './settingsPage.css';
 
 function SettingsPage() {
-  const { data, loading, error, regenerateKey, updateProfile } = useSettings();
+  const { data, loading, error, regenerateKey } = useSettings();
 
   if (loading) {
     return (
@@ -23,17 +22,13 @@ function SettingsPage() {
     );
   }
 
-  const apiKey = data?.api_key?.masked;
-  const createdAt = data?.api_key?.created_at;
-  const isActive = data?.api_key?.is_active;
-
   return (
     <div className="settings-container animate-fade-in">
 
       <div className="settings-header">
         <h1 className="settings-title">⚙️ Settings</h1>
         <p className="settings-subtitle">
-          Manage your API access and account configuration
+          Manage your profile and account configuration
         </p>
       </div>
 
@@ -43,21 +38,15 @@ function SettingsPage() {
         </p>
       )}
 
-      <ProfileSection
+      <ProfileSection />
+
+      <SecuritySection
         profile={data?.profile}
-        onSave={updateProfile}
+        apiKey={data?.api_key}
+        onRegenerateKey={regenerateKey}
       />
 
-      <ApiKeySection
-        apiKey={apiKey}
-        createdAt={createdAt}
-        isActive={isActive}
-        onRegenerate={regenerateKey}
-      />
-
-      <IntegrationSection
-        apiKey={apiKey}
-      />
+      <PreferencesSection />
     </div>
   );
 }

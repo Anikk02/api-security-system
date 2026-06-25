@@ -78,8 +78,7 @@ const User = () => {
 
   const handleUserSelect = async (user) => {
     try {
-      const userId = user.id.replace('user-', '');
-      const details = await userService.getUserDetails(userId);
+      const details = await userService.getUserDetails(user.id);
       
       // Use currentRiskScore (MAX for 15 min) as the source of truth
       setSelectedUser({
@@ -102,9 +101,7 @@ const User = () => {
     const toastId = toast.loading(`Blocking ${user.id}...`);
     setBlockingInProgress(true);
     try {
-      const userId = user.id.replace('user-', '');
-      const res = await fetch(`http://localhost:8000/api/dashboard/user/${userId}/block?duration=3600`, { method: 'POST' });
-      const result = await res.json();
+      const result = await userService.blockUser(user.id, 3600);
       if (result.success) {
         toast.success(`${user.id} blocked`, { id: toastId });
         await fetchUsers();
@@ -119,9 +116,7 @@ const User = () => {
     const toastId = toast.loading(`Unblocking ${user.id}...`);
     setBlockingInProgress(true);
     try {
-      const userId = user.id.replace('user-', '');
-      const res = await fetch(`http://localhost:8000/api/dashboard/user/${userId}/unblock`, { method: 'POST' });
-      const result = await res.json();
+      const result = await userService.unblockUser(user.id);
       if (result.success) {
         toast.success(`${user.id} unblocked`, { id: toastId });
         await fetchUsers();
@@ -134,12 +129,7 @@ const User = () => {
   const handleSendWarning = async (user) => {
     const toastId = toast.loading(`Sending warning...`);
     try {
-      const userId = user.id.replace('user-', '');
-      const res = await fetch(
-        `http://localhost:8000/api/dashboard/user/${userId}/warning?message=${encodeURIComponent("Suspicious API usage detected")}`,
-        { method: 'POST' }
-      );
-      const result = await res.json();
+      const result = await userService.sendWarning(user.id, 'Suspicious API usage detected');
       if (result.success) { toast.success('Warning sent', { id: toastId }); }
       else { toast.error(result.error, { id: toastId }); }
     } catch { toast.error('Warning failed', { id: toastId }); }
@@ -190,8 +180,7 @@ const User = () => {
                   className={`uc ${isSelected ? 'uc--active' : ''} ${user.isBlocked ? 'uc--blocked': ''}`}
                   onClick={async () => {
                     try {
-                      const userId = user.id.replace('user-', '');
-                      const details = await userService.getUserDetails(userId);
+                      const details = await userService.getUserDetails(user.id);
                       setSelectedUser({ ...user, ...details });
                     } catch { toast.error('Failed to load user'); }
                   }}

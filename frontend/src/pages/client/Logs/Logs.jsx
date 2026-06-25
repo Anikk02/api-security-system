@@ -40,7 +40,7 @@ const Logs = () => {
   };
   
   const filteredLogs = logs.filter(log =>
-    log.userId?.toString().includes(searchTerm.toLowerCase()) ||
+    log.identityId?.includes(searchTerm.toLowerCase()) ||
     log.ip?.includes(searchTerm) ||
     log.endpoint?.includes(searchTerm)
   );
@@ -115,7 +115,7 @@ const Logs = () => {
               {filteredLogs.map((log) => (
                 <tr key={log.id}>
                   <td>{log.timestamp?.toLocaleString()}</td>
-                  <td>{log.userId || 'anonymous'}</td>
+                  <td>{log.identityId || 'anonymous'}</td>
                   <td>{log.endpoint}</td>
                   <td>{log.ip}</td>
                   <td>

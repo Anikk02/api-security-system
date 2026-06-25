@@ -40,14 +40,14 @@ const mapAlert = (alert) => ({
   score: alert.score,
   type: alert.type,
   timestamp: new Date(alert.timestamp),
-  userId: alert.user_id
+  identityId: alert.identity_id // opaque identity_id string, not a numeric user id
 });
 
 // --- Logs ---
 const mapLog = (log) => ({
   id: log.id,
   requestUuid: log.request_uuid,
-  userId: log.user_id,
+  identityId: log.identity_id, // opaque identity_id string, not a numeric user id
   endpoint: log.endpoint,
   ip: log.ip_address,
   action: log.action,
@@ -130,7 +130,7 @@ export const dashboardService = {
   },
 
   getIpTrend: async (ip) => {
-    const response = await api.get(`/api/dashboard/ip/${ip}/trend`);
+    const response = await api.get(`/api/dashboard/ip/${encodeURIComponent(ip)}/trend`);
     return response.map(p => ({
       time: new Date(p.time).getTime(),
       risk: p.risk

@@ -10,11 +10,13 @@ export const userService = {
   },
   
   // ✅ FIXED: correct endpoint + mapping
-  getUserDetails: async (userId) => {
-    const response = await api.get(`/api/dashboard/user/${userId}`);
+  // Note: identityId is an opaque identity_id string (no "anon:"/"api:"
+  // prefix anymore), not a numeric user id — encode it before it goes into a URL.
+  getUserDetails: async (identityId) => {
+    const response = await api.get(`/api/dashboard/user/${encodeURIComponent(identityId)}`);
 
     return {
-      userId: response.user_id,
+      identityId: response.identity_id,
       isAnonymous: response.is_anonymous,
       totalRequests: response.total_requests,
       violations: response.violations,
@@ -27,22 +29,28 @@ export const userService = {
   },
   
   // (Keep only if backend exists)
-  getUserHistory: async (userId, limit = 50) => {
-    return await api.get(`/api/users/${userId}/history`, {
+  getUserHistory: async (identityId, limit = 50) => {
+    return await api.get(`/api/users/${encodeURIComponent(identityId)}/history`, {
       params: { limit }
     });
   },
   
   // ✅ FIXED: correct endpoint + query param
-  blockUser: async (userId, duration = 3600) => {
-    return await api.post(`/api/dashboard/user/${userId}/block`, null, {
+  blockUser: async (identityId, duration = 3600) => {
+    return await api.post(`/api/dashboard/user/${encodeURIComponent(identityId)}/block`, null, {
       params: { duration }
     });
   },
   
   // ✅ FIXED: correct endpoint
-  unblockUser: async (userId) => {
-    return await api.post(`/api/dashboard/user/${userId}/unblock`);
+  unblockUser: async (identityId) => {
+    return await api.post(`/api/dashboard/user/${encodeURIComponent(identityId)}/unblock`);
+  },
+
+  sendWarning: async (identityId, message = 'Suspicious activity detected on your account') => {
+    return await api.post(`/api/dashboard/user/${encodeURIComponent(identityId)}/warning`, null, {
+      params: { message }
+    });
   },
   
   // ❌ REMOVE (not implemented in backend)

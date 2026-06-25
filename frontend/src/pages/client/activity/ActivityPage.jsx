@@ -95,7 +95,7 @@ function ActivityPage() {
 
         <div className="activity-card">
           <h3 className="activity-card-title">🎯 Top Endpoint</h3>
-          <TopEndpointCard endpoints={endpoints} />
+          <TopEndpointCard endpoints={endpoints} topEndpoint={data.topEndpoint}/>
         </div>
       </div>
 
