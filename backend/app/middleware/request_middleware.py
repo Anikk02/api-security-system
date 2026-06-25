@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.background import BackgroundTasks
 
-from app.identity.resolver import resolve_identity
+from app.identity.resolver import resolve_identity, set_user_cookie_if_needed
 from app.identity.signals import extract_signals
 from app.state.state_manager import StateManager
 from app.utils.rate_limiter import SlidingWindowRateLimiter
@@ -18,9 +18,18 @@ from app.background.analysis_pipeline import run_analysis_pipeline
 
 logger = logging.getLogger(__name__)
 
-SAFE_ENDPOINTS = ["/api/dashboard", "/health"]
+CONTROL_PLANE_PREFIXES = [
+    "/api/auth",
+    "/api/client",
+    "/api-keys",
+    "/api/dashboard",
+    "/api/settings",
+    "/api/activity",
+    "/api/client/keys",
+    "/api/usage"
+]
 
-#Initialize rate limiter
+# Initialize rate limiter
 minute_limiter = SlidingWindowRateLimiter(max_requests=60, window_seconds=60)
 strict_limiter = SlidingWindowRateLimiter(max_requests=30, window_seconds=60)
 
@@ -49,7 +58,7 @@ class RequestMiddleware(BaseHTTPMiddleware):
 
         try:
             # SAFE ENDPOINT BYPASS (before identity - zero DB cost)
-            if any(request.url.path.startswith(e) for e in SAFE_ENDPOINTS):
+            if any(request.url.path.startswith(p) for p in CONTROL_PLANE_PREFIXES):
                 response = await call_next(request)
                 response.headers["X-Request-UUID"] = request.state.request_uuid
                 return response
@@ -62,37 +71,34 @@ class RequestMiddleware(BaseHTTPMiddleware):
             signals = await extract_signals(request)
             label = request.headers.get("X-Simulated-Label")
 
-            # ── 3. FAST-PATH DECISION (1 Redis pipeline - 2 reads) ────────
+            # ── 2. FAST-PATH DECISION (1 Redis pipeline - 2 reads) ────────
             #
             # ✅ FIX: Pass IP for IP block checking
             # This now checks BOTH user and IP blocks in a single pipeline
             #
             blocked, risk_score, throttled = await StateManager.get_decision_signals(
-                identity.user_id, 
-                identity.ip_address,  # ✅ Pass IP for block checking
+                identity,
                 identity.behavioral_fingerprint
             )
 
             # Determine action based on fast-path signals
             action, reason = await _fast_decision(blocked, throttled, risk_score)
 
-            # ── 4. TRACK THIS REQUEST (fire-and-forget pipeline) ──────────
+            # ── 3. TRACK THIS REQUEST (fire-and-forget pipeline) ──────────
             # One pipelined ZADD+SADD. Does NOT block the response.
             asyncio.ensure_future(
                 StateManager.track_request_async(
-                    user_id=identity.user_id,
+                    identity=identity,
                     endpoint=signals.endpoint,
-                    ip=signals.ip_address,
                     status_code=None,   # unknown yet; updated in background
                 )
             )
 
-            # ── 5. BLOCK FAST PATH ────────────────────────────────────────
+            # ── 4. BLOCK FAST PATH ────────────────────────────────────────
             if action == "block":
                 # Kick off background to still log + update reputation
                 asyncio.ensure_future(
                     run_analysis_pipeline(
-                        user_id=identity.user_id,
                         identity=identity,
                         signals=signals,
                         status_code=429,
@@ -102,7 +108,7 @@ class RequestMiddleware(BaseHTTPMiddleware):
                     )
                 )
 
-                return JSONResponse(
+                response = JSONResponse(
                     status_code=429,
                     content={
                         "detail": reason,
@@ -113,19 +119,23 @@ class RequestMiddleware(BaseHTTPMiddleware):
                         "Retry-After": "3600",
                     }
                 )
+                
+                # Set cookie if this is a first-time user (even on block)
+                set_user_cookie_if_needed(request, response)
+                
+                return response
 
-            # ── 6. RATE LIMITING CHECK (Sliding Window) ───────────────────────────────────────────────
+            # ── 5. RATE LIMITING CHECK (Sliding Window) ───────────────────
             limiter = strict_limiter if risk_score > 0.6 else minute_limiter
-            allowed, count, retry_after = await limiter.check_and_allow(
-                f"user:{identity.user_id}"
-            )
+            rate_key = f"client:{identity.client_id}:identity:{identity.identity_id}"
 
-            # 7. RATE LIMITED PATH (429)
+            allowed, count, retry_after = await limiter.check_and_allow(rate_key)
+
+            # ── 6. RATE LIMITED PATH (429) ─────────────────────────────────
             if not allowed:
                 # Still run background analysis
                 asyncio.ensure_future(
                     run_analysis_pipeline(
-                        user_id=identity.user_id,
                         identity=identity,
                         signals=signals,
                         status_code=429,
@@ -135,10 +145,10 @@ class RequestMiddleware(BaseHTTPMiddleware):
                     )
                 )
 
-                return JSONResponse(
+                response = JSONResponse(
                     status_code=429,
                     content={
-                        "detail":f"Rated limit exceeded. {count}/{limiter.max_requests} requests per minute.",
+                        "detail": f"Rate limit exceeded. {count}/{limiter.max_requests} requests per minute.",
                         "retry_after": retry_after,
                         "remaining": 0,
                         "reset": int(time.time() + retry_after),
@@ -152,8 +162,13 @@ class RequestMiddleware(BaseHTTPMiddleware):
                         "Cache-Control": "no-cache, no-store, must-revalidate"
                     }
                 )
+                
+                # Set cookie if this is a first-time user
+                set_user_cookie_if_needed(request, response)
+                
+                return response
             
-            # Users flagged with throttled flag from penalty_manager
+            # ── 7. THROTTLED USERS (flag from penalty_manager) ───────────
             if throttled:
                 # The flag means they're already being rate-limited elsewhere
                 # Just process the request normally
@@ -170,15 +185,14 @@ class RequestMiddleware(BaseHTTPMiddleware):
                 response.headers["X-Throttled"] = "true"
     
                 logger.info(
-                     f"user={identity.user_id} | action=throttle (flag active) | "
-                     f"status={response.status_code} | time={process_time:.4f}s | "
-                     f"req_uuid={request.state.request_uuid}"
+                    f"user={identity.identity_id} | action=throttle (flag active) | "
+                    f"status={response.status_code} | time={process_time:.4f}s | "
+                    f"req_uuid={request.state.request_uuid}"
                 )
     
                 # Background analysis
                 asyncio.ensure_future(
                     run_analysis_pipeline(
-                        user_id=identity.user_id,
                         identity=identity,
                         signals=signals,
                         status_code=response.status_code,
@@ -188,14 +202,17 @@ class RequestMiddleware(BaseHTTPMiddleware):
                     )
                 )
                 
+                # Set cookie if this is a first-time user
+                set_user_cookie_if_needed(request, response)
+                
                 return response
 
-            # ── 7. NORMAL FLOW ────────────────────────────────────────────
+            # ── 8. NORMAL FLOW ────────────────────────────────────────────
             response = await call_next(request)
             process_time = time.time() - start_time
 
             logger.info(
-                f"user={identity.user_id} | action={action} | "
+                f"user={identity.identity_id} | action={action} | "
                 f"status={response.status_code} | time={process_time:.4f}s | "
                 f"req_uuid={request.state.request_uuid}"
             )
@@ -203,12 +220,15 @@ class RequestMiddleware(BaseHTTPMiddleware):
             response.headers["X-Request-UUID"] = request.state.request_uuid
             response.headers["X-Process-Time"] = f"{process_time:.4f}"
 
-            # ── 8. BACKGROUND ANALYSIS ────────────────────────────────────
+            # ── 9. SET USER COOKIE (if first-time user) ──────────────────
+            # This must happen BEFORE the response is returned
+            set_user_cookie_if_needed(request, response)
+
+            # ── 10. BACKGROUND ANALYSIS ────────────────────────────────────
             # Runs AFTER response is sent. Updates risk_score, reputation,
             # feature log, DB — all invisible to this request's latency.
             asyncio.ensure_future(
                 run_analysis_pipeline(
-                    user_id=identity.user_id,
                     identity=identity,
                     signals=signals,
                     status_code=response.status_code,
@@ -222,13 +242,16 @@ class RequestMiddleware(BaseHTTPMiddleware):
 
         except Exception as e:
             logger.exception(f"Middleware error: {e}")
-            return JSONResponse(
+            response = JSONResponse(
                 status_code=500,
                 content={"detail": "Internal middleware error"},
             )
+            # Even on error, try to set cookie if it was a first-time user
+            set_user_cookie_if_needed(request, response)
+            return response
 
 
-# ── FAST DECISION LOGIC ────────────────────────────────────────────────────────
+# ── FAST DECISION LOGIC ──────────────────────────────────────────────────────
 #
 # This is the ONLY decision logic in the hot path.
 # Reads pre-computed Redis signals. No math, no loops, no DB.
