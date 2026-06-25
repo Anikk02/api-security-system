@@ -43,7 +43,7 @@ def _to_int(value, default=0):
     except:
         return default
 
-# MAIN ENTRY - OPTIMIZED VERSION
+# MAIN ENTRY - WITH IP ROTATION DETECTION
 async def apply_penalty(identity, signals, risk_score: float, base_action: str):
     """
     identity → user_id, ip
@@ -54,7 +54,8 @@ async def apply_penalty(identity, signals, risk_score: float, base_action: str):
     """
 
     try:
-        user_id = identity.user_id
+        client_id = identity.client_id
+        identity_id = identity.identity_id
         ip = getattr(identity, "ip_address", "unknown")
         ua = getattr(signals, "user_agent", "")
         
@@ -63,27 +64,34 @@ async def apply_penalty(identity, signals, risk_score: float, base_action: str):
         if not fingerprint:
             fingerprint = _generate_fingerprint(ip, ua)
 
+        # Shared key namespace with StateManager
+        base = StateManager._base(client_id, identity_id)
+
         # ✅ SINGLE pipeline for ALL reads
         pipe = redis_client.pipeline()
         
         now = time.time()
         
         # Request count
-        ts_key = f"user:{user_id}:timestamps"
+        ts_key = f"{base}:timestamps"
         pipe.zcount(ts_key, now - WINDOWS["short"], now)
         
         # Error count
-        error_key = f"user:{user_id}:errors"
+        error_key = f"{base}:errors"
         pipe.get(error_key)
         
         # Violations
-        violation_key = f"user:{user_id}:violations"
+        violation_key = f"{base}:violations"
         pipe.get(violation_key)
+        
+        # ✅ IP rotation detection - get unique IP count in last 5 minutes
+        ip_key = f"{base}:ips"
+        pipe.scard(ip_key)  # Get count of unique IPs
         
         # Reputation keys
         rep_keys = [
             f"rep:ip:{ip}",
-            f"rep:user:{user_id}",
+            f"rep:identity:{identity_id}",
             f"rep:fp:{fingerprint}"
         ]
         for key in rep_keys:
@@ -92,48 +100,85 @@ async def apply_penalty(identity, signals, risk_score: float, base_action: str):
         # Check if IP is already blocked
         pipe.exists(f"ip:{ip}:blocked")
         pipe.exists(f"fp:{fingerprint}:blocked")
+        pipe.exists(f"{base}:throttled")
         
         # Execute all reads in ONE call
         results = await pipe.execute()
         
         # Parse results
-        req_count = results[0] or 0
-        error_count = int(results[1]) if results[1] else 0
-        violation_count = int(results[2]) if results[2] else 0
-        ip_rep = float(results[3]) if results[3] else 0.0
-        user_rep = float(results[4]) if results[4] else 0.0
-        fp_rep = float(results[5]) if results[5] else 0.0
-        ip_already_blocked = bool(results[6]) if len(results) > 6 else False
-        fp_already_blocked = bool(results[7]) if results[7] else False
+        req_count = _to_int(results[0])
+        error_count = _to_int(results[1])
+        violation_count = _to_int(results[2])
+        unique_ip_count = _to_int(results[3])  # ✅ IP rotation metric
+        
+        ip_rep = _to_float(results[4])
+        user_rep = _to_float(results[5])
+        fp_rep = _to_float(results[6])
+        
+        ip_blocked = bool(results[7]) if len(results) > 7 else False
+        fp_blocked = bool(results[8]) if results[8] else False
+        throttled = bool(results[9]) if results[9] else False
 
-        # Fast reject if IP is already blocked
-        if ip_already_blocked:
+        # Fast reject if already blocked
+        if ip_blocked:
             return "block", "IP is blocked", _meta(risk_score, 0)
         
-        if fp_already_blocked:
+        if fp_blocked:
             return "block", "Fingerprint is blocked", _meta(risk_score, 0)
+        
+        if throttled:
+            return "throttle", "Currently throttled", _meta(risk_score, 0)
 
         combined_rep = _combine_reputation(ip_rep, user_rep, fp_rep)
 
-        # Dynamic risk boost
-        adjusted_risk = min(
-            risk_score * 0.7
-            + combined_rep * 0.10
-            + min(violation_count / 20, 0.08)
-            + min(req_count / 200, 0.05)
-            + min(error_count / 100, 0.07),
-            1.0
-        )
+        # ✅ FIXED: Calculate IP rotation risk as a multiplier (1.0 = no impact)
+        ip_rotation_multiplier = 1.0
+        rotation_explanation = ""
+        
+        if unique_ip_count > 1:
+            # Multiple IPs detected for same identity
+            if unique_ip_count >= 10:
+                ip_rotation_multiplier = 1.5  # 50% risk increase
+                rotation_explanation = f"Extreme IP rotation ({unique_ip_count} IPs in 5min)"
+            elif unique_ip_count >= 5:
+                ip_rotation_multiplier = 1.3  # 30% risk increase
+                rotation_explanation = f"High IP rotation ({unique_ip_count} IPs in 5min)"
+            elif unique_ip_count >= 3:
+                ip_rotation_multiplier = 1.15  # 15% risk increase
+                rotation_explanation = f"Moderate IP rotation ({unique_ip_count} IPs in 5min)"
+            else:
+                ip_rotation_multiplier = 1.05  # 5% risk increase
+                rotation_explanation = f"Low IP rotation ({unique_ip_count} IPs in 5min)"
 
-        # ✅ Determine action with FULL explanation
-        action, reason, delta, should_block, block_severity = _determine_action_with_explanation(
-            adjusted_risk, combined_rep, violation_count, risk_score, req_count, error_count
+        # ✅ Calculate base risk (0.0 to 0.8 range)
+        base_risk = min(
+            risk_score * 0.65
+            + combined_rep * 0.15
+            + min(violation_count / 30, 0.10)
+            + min(req_count / 250, 0.05)
+            + min(error_count / 150, 0.05),
+            0.8  # Cap base risk at 0.8
         )
         
-        # ✅ SINGLE pipeline for ALL writes (fire and forget)
+        # ✅ Apply IP rotation multiplier
+        adjusted_risk = min(base_risk * ip_rotation_multiplier, 1.0)
+
+        # ✅ Determine action with explanation including IP rotation
+        action, reason, delta, should_block, block_severity = _determine_action_with_explanation(
+            adjusted_risk, 
+            combined_rep, 
+            violation_count, 
+            risk_score, 
+            req_count, 
+            error_count,
+            unique_ip_count,
+            rotation_explanation
+        )
+        
+        # ✅ SINGLE pipeline for ALL writes
         asyncio.create_task(_apply_updates_pipeline(
-            ip, user_id, fingerprint, rep_keys, 
-            delta,should_block, block_severity, action, adjusted_risk
+            ip, identity_id, client_id, fingerprint, rep_keys,
+            delta, should_block, block_severity, action, adjusted_risk
         ))
         
         return action, reason, _meta(adjusted_risk, combined_rep)
@@ -143,10 +188,11 @@ async def apply_penalty(identity, signals, risk_score: float, base_action: str):
         return base_action, "fallback", {}
 
 
-def _determine_action_with_explanation(adjusted_risk, combined_rep, violation_count, original_risk, req_count, error_count):
+def _determine_action_with_explanation(adjusted_risk, combined_rep, violation_count, 
+                                       original_risk, req_count, error_count,
+                                       unique_ip_count=0, rotation_explanation=""):
     """
     Determine action with detailed, user-friendly explanations.
-    Returns: (action, reason, delta, should_block, block_severity)
     """
     
     # Hard rules - High reputation threat
@@ -155,6 +201,22 @@ def _determine_action_with_explanation(adjusted_risk, combined_rep, violation_co
             "block", 
             f"High reputation threat (reputation={combined_rep:.2f})", 
             0.2, True, "hard"
+        )
+    
+    # ✅ High IP rotation detected - block immediately
+    if unique_ip_count >= 5 and adjusted_risk > 0.5:
+        return (
+            "block",
+            f"IP rotation attack detected: {unique_ip_count} different IPs in 5 minutes",
+            0.2, True, "hard"
+        )
+    
+    # Medium IP rotation - throttle
+    if unique_ip_count >= 3 and adjusted_risk > 0.4:
+        return (
+            "throttle",
+            f"Suspicious IP rotation: {unique_ip_count} IPs in 5 minutes",
+            0.05, False, None
         )
     
     # Hard Block (85%+ risk)
@@ -166,6 +228,8 @@ def _determine_action_with_explanation(adjusted_risk, combined_rep, violation_co
             factors.append(f"{violation_count} violations")
         if req_count > 100:
             factors.append(f"{req_count} requests/min")
+        if unique_ip_count >= 3:
+            factors.append(f"{unique_ip_count} IPs rotating")
         
         reason = f"Severe malicious activity detected" + (f" ({', '.join(factors)})" if factors else "")
         return "block", reason, 0.2, True, "hard"
@@ -176,8 +240,8 @@ def _determine_action_with_explanation(adjusted_risk, combined_rep, violation_co
             "block", 
             f"Repeated suspicious behavior ({violation_count} violations in 30min)", 
             0.1, 
-            True, #should_block
-            "medium" # block_severity
+            True, 
+            "medium"
         )
     
     if adjusted_risk > 0.7:
@@ -187,6 +251,8 @@ def _determine_action_with_explanation(adjusted_risk, combined_rep, violation_co
             factors.append(f"risk spike to {original_risk:.0%}")
         if error_count > 10:
             factors.append(f"{error_count} errors")
+        if unique_ip_count >= 3:
+            factors.append(f"{unique_ip_count} IPs rotating")
         
         reason = f"High risk traffic" + (f" ({', '.join(factors)})" if factors else "")
         return "throttle", reason, 0.05, False, None
@@ -198,6 +264,8 @@ def _determine_action_with_explanation(adjusted_risk, combined_rep, violation_co
             factors.append(f"elevated risk {original_risk:.0%}")
         if req_count > 50:
             factors.append(f"high volume {req_count}/min")
+        if unique_ip_count >= 3:
+            factors.append(f"{unique_ip_count} IPs rotating")
         
         reason = f"Suspicious activity detected" + (f" ({', '.join(factors)})" if factors else "")
         return "throttle", reason, 0.05, False, None
@@ -206,9 +274,11 @@ def _determine_action_with_explanation(adjusted_risk, combined_rep, violation_co
     return "allow", "Normal traffic", -0.02, False, None
 
 
-async def _apply_updates_pipeline(ip, user_id, fingerprint, rep_keys, delta, should_block, block_severity, action, adjusted_risk):
+async def _apply_updates_pipeline(ip, identity_id, client_id, fingerprint, rep_keys, 
+                                   delta, should_block, block_severity, action, adjusted_risk):
     """Single pipeline for ALL updates - fire and forget"""
     try:
+        base = StateManager._base(client_id, identity_id)
         pipe = redis_client.pipeline()
         
         # Update reputation keys
@@ -217,37 +287,41 @@ async def _apply_updates_pipeline(ip, user_id, fingerprint, rep_keys, delta, sho
             pipe.expire(key, 3600)
         
         # Update request counter
-        ts_key = f"user:{user_id}:timestamps"
+        ts_key = f"{base}:timestamps"
         now = time.time()
         pipe.zadd(ts_key, {str(now): now})
         pipe.zremrangebyscore(ts_key, 0, now - WINDOWS["long"])
         pipe.expire(ts_key, WINDOWS["long"])
         
+        # ✅ Track IP (already tracked by StateManager, but ensure it's done)
+        ip_key = f"{base}:ips"
+        pipe.sadd(ip_key, ip)
+        pipe.expire(ip_key, 300)  # 5-minute window for IP rotation detection
+        
         # Apply block if needed
         if action == 'block' and should_block:
             duration = BLOCK_DURATIONS[block_severity]
-            pipe.setex(f"user:{user_id}:blocked", duration, "1")
+            pipe.setex(f"{base}:blocked", duration, "1")
             pipe.setex(f"ip:{ip}:blocked", duration, "1")
             pipe.setex(f"fp:{fingerprint}:blocked", duration, "1")
-            #clear throttle flag if it exist
-            pipe.delete(f"user:{user_id}:throttled")
+            # Clear throttle flag if it exists
+            pipe.delete(f"{base}:throttled")
         
         # Add throttle tracking if needed
         if action == "throttle":
-            #Set throttle flag for 60 seconds
-            pipe.setex(f"user:{user_id}:throttled", 60, "1")
-        
+            # Set throttle flag for 60 seconds
+            pipe.setex(f"{base}:throttled", 60, "1")
         else:
-            #Decay throttle if it exists
-            pipe.delete(f"user:{user_id}:throttled")
+            # Decay throttle if it exists
+            pipe.delete(f"{base}:throttled")
         
         # Store the current risk score for the next request
-        pipe.setex(f"user:{user_id}:risk_score", 300, str(adjusted_risk))
+        pipe.setex(f"{base}:risk_score", 300, str(adjusted_risk))
         
         await pipe.execute()
         
     except Exception as e:
-        logger.error(f"Background updates pipeline failed for user {user_id}: {e}")
+        logger.error(f"Background updates pipeline failed: {e}")
 
 
 # ---------------- HELPERS ---------------- #
