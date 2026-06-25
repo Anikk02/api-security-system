@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.auth import get_current_client
-from db.session import get_db
+from app.core.auth import get_current_client
+from app.db.session import get_db
 
-from settings import service as settings_service
-from settings.schemas import (
+from app.settings import service as settings_service
+from app.settings.schemas import (
     SettingsOverviewResponse,
     APIKeyRegenerateResponse,
     UpdateProfileRequest,
