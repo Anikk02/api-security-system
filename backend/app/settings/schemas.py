@@ -3,7 +3,9 @@ from datetime import datetime
 from typing import Optional
 
 
-#  PROFILE
+# =========================================
+# 👤 PROFILE
+# =========================================
 
 class ProfileResponse(BaseModel):
     id: int
@@ -19,7 +21,9 @@ class UpdateProfileResponse(BaseModel):
     message: str
 
 
-#  API KEY
+# =========================================
+# 🔑 API KEY
+# =========================================
 
 class APIKeyResponse(BaseModel):
     api_key: Optional[str]  # masked key
@@ -31,7 +35,9 @@ class APIKeyRegenerateResponse(BaseModel):
     message: str
 
 
-# SETTINGS OVERVIEW
+# =========================================
+# ⚙️ SETTINGS OVERVIEW
+# =========================================
 
 class APIKeyOverview(BaseModel):
     masked: Optional[str]

@@ -1,7 +1,7 @@
 from sqlalchemy import select, func, distinct
 from datetime import datetime, timedelta
 
-from db.models.request_log import RequestLog
+from app.db.models.request_log import RequestLog
 
 
 async def get_usage_data(db, client_id: int):
