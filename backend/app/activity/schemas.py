@@ -7,7 +7,7 @@ class ThreatEvent(BaseModel):
     event: str
     description: str
     severity: str
-    ip: Optional[str]
+    ip: Optional[str] = None
 
 
 class DecisionTrendPoint(BaseModel):
@@ -42,16 +42,35 @@ class PeakAttack(BaseModel):
     time: Optional[str]
     blocked: int
     endpoint: Optional[str]
+    severity: Optional[str]
+
+
+class AttackPattern(BaseModel):
+    endpoint: str
+    percentage: float
+
+
+class SpikeCorrelation(BaseModel):
+    peak_time: str
+    blocked: int
+    target: str
+
+
+# 🔥 NEW
+class TopEndpoint(BaseModel):
+    endpoint: str
+    requests: int
+    percentage: float
 
 
 class ActivityResponse(BaseModel):
     timeline: List[ThreatEvent]
     endpoints: List[EndpointActivity]
     trend: List[DecisionTrendPoint]
-
     insights: ActivityInsights
     metrics: ActivityMetrics
     peak: PeakAttack
-
-    patterns: List[dict]
-    correlations: List[dict]
+    patterns: List[AttackPattern]
+    correlations: List[SpikeCorrelation]
+    topEndpoint: Optional[TopEndpoint]
+    healthScore: float
