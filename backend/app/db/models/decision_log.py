@@ -1,4 +1,4 @@
-from sqlalchemy import Column, BigInteger, String, Float, DateTime, ForeignKey, Text
+from sqlalchemy import Column, BigInteger, String, Float, DateTime, ForeignKey, Text, Integer
 from sqlalchemy.dialects.postgresql import JSONB
 from datetime import datetime
 from app.db.base import Base
@@ -9,24 +9,40 @@ class DecisionLog(Base):
 
     id = Column(BigInteger, primary_key=True, index=True)
 
-    #internal FK
+    # ============================
+    # 🔗 Internal Link
+    # ============================
     request_id = Column(BigInteger, ForeignKey('request_logs.id'), index=True)
 
-    #External trace
+    # ============================
+    # 🌐 External Trace
+    # ============================
     request_uuid = Column(String, index=True)
 
-    user_id = Column(BigInteger, index=True,nullable=True) 
+    # ============================
+    # 🧠 Identity Layer (FIXED)
+    # ============================
+    identity_id = Column(String, index=True)       # 🔥 replaces user_id
+    client_id = Column(Integer, index=True)        # 🔥 critical
+    api_key_id = Column(Integer, nullable=True, index=True)
 
-
+    # ============================
+    # ⚖️ Decision
+    # ============================
     action = Column(String, nullable=False)  # allow / throttle / block
     reason = Column(String)
 
     risk_score = Column(Float)
 
+    # ============================
+    # 🧪 ML / Evaluation
+    # ============================
     ground_truth_label = Column(String, nullable=True)
 
     explanation = Column(Text, nullable=True)
-
     explanation_json = Column(JSONB, nullable=True)
 
+    # ============================
+    # ⏱️ Timestamp
+    # ============================
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
