@@ -23,6 +23,7 @@ class TrafficResponse(BaseModel):
 
 class SuspiciousUserResponse(BaseModel):
     id: str
+    identity_id: str  # was missing entirely; route was passing it in and Pydantic silently dropped it
     violations: int
     threat_score: float
     status: str
@@ -37,12 +38,12 @@ class AlertResponse(BaseModel):
     score: float
     type: str
     timestamp: datetime
-    user_id: Optional[str] = None
+    identity_id: Optional[str] = None  # renamed from user_id (was already str-typed, just misnamed)
 
 class LogResponse(BaseModel):
     id: int
     request_uuid: str
-    user_id: Optional[int]
+    identity_id: Optional[str]  # renamed from user_id; was Optional[int] but identity_id is a string
     endpoint: str
     ip_address: str
     action: str
@@ -51,10 +52,13 @@ class LogResponse(BaseModel):
     created_at: datetime
 
 class UserDetailsResponse(BaseModel):
-    user_id: int
+    identity_id: str  # renamed from user_id: int
+    client_id: Optional[int] = None  # was missing; route returns this
     is_anonymous: bool
     total_requests: int
     violations: int
     current_risk_score: float
+    avg_risk_score: float  # was missing; route returns this
+    is_blocked: bool = False  # was missing; route returns this
     recent_actions: List[dict]
     ip_history: List[str]

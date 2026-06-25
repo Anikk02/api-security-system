@@ -31,14 +31,24 @@ class Settings(BaseSettings):
     #Redis
     REDIS_URL: str
 
+    # JWT Authentication
+    JWT_SECRET_KEY: str
+    JWT_ALGORITHM: str
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    PASSWORD_RESET_EXPIRE_MINUTES: int = 15
+    BCRYPT_ROUNDS: int = 12
+    MAX_FAILED_LOGIN_ATTEMPTS: int = 10
+    ACCOUNT_LOCKOUT_MINUTES: int = 30
+
     #Security
     RATE_LIMIT_WINDOW: int = 60 #seconds
     MAX_REQUESTS_PER_MINUTE: int = 100
 
     #Block Durations(seconds)
-    BLOCK_SOFT_DURATION: int = 120 #2 minutes
-    BLOCK_MEDIUM_DURATION: int = 600 #10 minutes
-    BLOCK_HARD_DURATION: int = 3600 #1 hour
+    BLOCK_SOFT_DURATION: int = 7200 #2 hours
+    BLOCK_MEDIUM_DURATION: int = 21600 #6 hours
+    BLOCK_HARD_DURATION: int = 43200 #12 hour
 
     #Logging
     LOG_LEVEL: str = "INFO"
