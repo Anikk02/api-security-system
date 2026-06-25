@@ -18,7 +18,7 @@ SUSPICIOUS_USERS_COUNT = 10
 ATTACK_USERS_COUNT = 10
 
 # API Key for authentication
-API_KEY = "ts_live_95edd6b67e00b1f099c5fe2ea3362441d345d8a2dec870aa"
+API_KEY = ""
 
 # ============ ENHANCED IP POOL (100+ realistic IPs) ============
 IP_POOL = [
