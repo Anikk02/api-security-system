@@ -15,32 +15,38 @@ class FeatureBuilder:
         self.state = state_manager
 
     async def build(self, identity, signals):
-        user_id = identity.user_id
+        # 🔥 UPDATED: use identity_id + client_id instead of user_id
+        identity_id = identity.identity_id
+        client_id = identity.client_id
+
+        # 🔥 UPDATED: namespaced Redis key
+        base_key = f"client:{client_id}:identity:{identity_id}"
+
         now = time.time()
 
         # SINGLE PIPELINE for all Redis reads
         pipe = redis_client.pipeline()
 
         # Request count (5 seconds)
-        ts_key = f"user:{user_id}:timestamps"
+        ts_key = f"{base_key}:timestamps"
         pipe.zcount(ts_key, now -5, now)
 
         # Request count (60 seconds)
         pipe.zcount(ts_key, now - 60, now)
 
         # Recent endpoints (60 seconds)
-        endpoint_key = f"user:{user_id}:endpoints"
+        endpoint_key = f"{base_key}:endpoints"
         pipe.zrangebyscore(endpoint_key, now - 60, now)
 
         # Error count (60 seconds)
-        error_key = f"user:{user_id}:errors"
+        error_key = f"{base_key}:errors"
         pipe.get(error_key)
 
         # Request timestamps
         pipe.zrangebyscore(ts_key, now - 60, now, withscores=True)
 
         # IP changes (300 seconds)
-        ip_key = f"user:{user_id}:ips"
+        ip_key = f"{base_key}:ips"
         pipe.smembers(ip_key)
 
         #Execute all reads in one Redis call
@@ -105,7 +111,7 @@ class FeatureBuilder:
         req_per_sec = (req_per_5sec_raw or 0) / 5
 
         #Print occassionally to avoid log spam
-        if hash(user_id) % 100 == 0: #sample 1% of requests
+        if hash(identity_id) % 100 == 0: #sample 1% of requests
             print("DEBUG -> req/sec:", req_per_sec)
             print("DEBUG -> req/min:", req_per_min)
 
@@ -182,8 +188,8 @@ class FeatureBuilder:
             regularity = 0.0
 
         # Only print occassionally
-        if hash(user_id) % 100 == 0:
-            print("DeBUG -> user:", user_id)
+        if hash(identity_id) % 100 == 0:
+            print("DeBUG -> user:", identity_id)
             print("DEBUG -> timestamps:", request_timestamps)
 
         time_variance = self._calculate_time_variance(request_timestamps)
@@ -274,8 +280,6 @@ class FeatureBuilder:
         
         #normalize interval
         normalized = [i / mean for i in intervals]
-
-
 
         variance = sum((x - 1) ** 2 for x in normalized) / len(normalized)
 
