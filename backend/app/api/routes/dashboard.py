@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, timedelta
 from typing import List, Dict, Any
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, case
 
@@ -17,17 +17,47 @@ from app.schemas.dashboard import (
 from app.db.models.request_log import RequestLog
 from app.db.models.decision_log import DecisionLog
 from app.db.models.warning_log import WarningLog
+from app.db.models.client import Client
 from app.risk.risk_engine import get_adaptive_thresholds
 from app.state.state_manager import StateManager
-from app.client import service as client_service
+from app.authentication.dependencies import require_active_client
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/dashboard", tags=["Dashboard"])
 
 
+class _IdentityRef:
+    """Minimal stand-in for app.identity.resolver.Identity."""
+    __slots__ = ("client_id", "identity_id")
+
+    def __init__(self, client_id: int | None, identity_id: str):
+        self.client_id = client_id
+        self.identity_id = identity_id
+
+
+async def _resolve_client_id(db: AsyncSession, identity_id: str, client_id: int | None) -> int | None:
+    """Resolve client_id from identity_id if not provided."""
+    if client_id is not None:
+        return client_id
+
+    result = await db.execute(
+        select(RequestLog.client_id)
+        .where(RequestLog.identity_id == identity_id)
+        .order_by(RequestLog.created_at.desc())
+        .limit(1)
+    )
+    return result.scalar()
+
+
 @router.get("/stats", response_model=DashboardStatsResponse)
-async def get_dashboard_stats(db: AsyncSession = Depends(get_db)):
+async def get_dashboard_stats(
+    current_client: Client = Depends(require_active_client),  # ✅ Authentication
+    db: AsyncSession = Depends(get_db)
+):
+    """Get dashboard stats for the authenticated client only."""
+    client_id = current_client.id  # ✅ Filter by this client
+    
     now = datetime.utcnow()
     last_minute = now - timedelta(minutes=1)
     prev_minute_start = last_minute - timedelta(minutes=1)
@@ -38,14 +68,18 @@ async def get_dashboard_stats(db: AsyncSession = Depends(get_db)):
 
     high_th, med_th = get_adaptive_thresholds()
 
-    # ── 1 query: RPS (current) + RPS (previous minute) in one pass ──────────
+    # ── 1 query: RPS (current) + RPS (previous minute) ──────────
     rps_result = await db.execute(
         select(
-            func.sum(case((RequestLog.created_at >= last_minute, 1), else_=0)).label("current"),
-            func.sum(case((
-                and_(RequestLog.created_at >= prev_minute_start,
-                     RequestLog.created_at < last_minute), 1), else_=0
-            )).label("previous"),
+            func.sum(case((and_(
+                RequestLog.created_at >= last_minute,
+                RequestLog.client_id == client_id  # ✅ Filter
+            ), 1), else_=0)).label("current"),
+            func.sum(case((and_(
+                RequestLog.created_at >= prev_minute_start,
+                RequestLog.created_at < last_minute,
+                RequestLog.client_id == client_id  # ✅ Filter
+            ), 1), else_=0)).label("previous"),
         )
         .where(RequestLog.created_at >= prev_minute_start)
     )
@@ -57,37 +91,41 @@ async def get_dashboard_stats(db: AsyncSession = Depends(get_db)):
     prev_rps = prev_requests / 60
     rps_trend = round(((requests_per_second - prev_rps) / (prev_rps + 0.01)) * 100, 1)
 
-    # ── 1 query: current + previous violations + risk composition ───────────
-    # FIXED: violations now count MEDIUM + HIGH risk (risk_score > med_th)
+    # ── 2 query: violations + risk composition ───────────
     dec_result = await db.execute(
         select(
             # Current violations (last 15m, medium + high risk)
-            func.sum(case((
-                and_(DecisionLog.created_at >= last_15m,
-                     DecisionLog.risk_score > med_th), 1), else_=0
-            )).label("violations"),
-            # Previous violations (15m window starting 60m ago, medium + high risk)
-            func.sum(case((
-                and_(DecisionLog.created_at >= prev_15_start,
-                     DecisionLog.created_at < prev_15_end,
-                     DecisionLog.risk_score > med_th), 1), else_=0
-            )).label("prev_violations"),
-            # Risk composition buckets (last 15m)
-            func.sum(case((
-                and_(DecisionLog.created_at >= last_15m,
-                     DecisionLog.risk_score > high_th), 1), else_=0
-            )).label("high_count"),
-            func.sum(case((
-                and_(DecisionLog.created_at >= last_15m,
-                     DecisionLog.risk_score > med_th,
-                     DecisionLog.risk_score <= high_th), 1), else_=0
-            )).label("medium_count"),
-            func.sum(case((
-                and_(DecisionLog.created_at >= last_15m,
-                     DecisionLog.risk_score <= med_th), 1), else_=0
-            )).label("low_count"),
+            func.sum(case((and_(
+                DecisionLog.created_at >= last_15m,
+                DecisionLog.risk_score > med_th,
+                DecisionLog.client_id == client_id  # ✅ Filter
+            ), 1), else_=0)).label("violations"),
+            # Previous violations
+            func.sum(case((and_(
+                DecisionLog.created_at >= prev_15_start,
+                DecisionLog.created_at < prev_15_end,
+                DecisionLog.risk_score > med_th,
+                DecisionLog.client_id == client_id  # ✅ Filter
+            ), 1), else_=0)).label("prev_violations"),
+            # Risk composition buckets
+            func.sum(case((and_(
+                DecisionLog.created_at >= last_15m,
+                DecisionLog.risk_score > high_th,
+                DecisionLog.client_id == client_id  # ✅ Filter
+            ), 1), else_=0)).label("high_count"),
+            func.sum(case((and_(
+                DecisionLog.created_at >= last_15m,
+                DecisionLog.risk_score > med_th,
+                DecisionLog.risk_score <= high_th,
+                DecisionLog.client_id == client_id  # ✅ Filter
+            ), 1), else_=0)).label("medium_count"),
+            func.sum(case((and_(
+                DecisionLog.created_at >= last_15m,
+                DecisionLog.risk_score <= med_th,
+                DecisionLog.client_id == client_id  # ✅ Filter
+            ), 1), else_=0)).label("low_count"),
         )
-        .where(DecisionLog.created_at >= prev_15_start)  # widest window drives the scan
+        .where(DecisionLog.created_at >= prev_15_start)
     )
     dec_row = dec_result.one()
 
@@ -104,20 +142,21 @@ async def get_dashboard_stats(db: AsyncSession = Depends(get_db)):
 
     total = high_count + medium_count + low_count
     traffic_composition = {
-        "normal":    round((low_count    / total) * 100) if total else 0,
+        "normal": round((low_count / total) * 100) if total else 0,
         "suspicious": round((medium_count / total) * 100) if total else 0,
-        "high_risk": round((high_count   / total) * 100) if total else 0,
+        "high_risk": round((high_count / total) * 100) if total else 0,
     }
 
-    # ── 1 query: suspicious sessions (distinct user_ids with medium+ risk) ───
+    # ── 3 query: suspicious sessions ───────────
     sess_result = await db.execute(
-        select(func.count(func.distinct(RequestLog.user_id)))
+        select(func.count(func.distinct(RequestLog.identity_id)))
         .select_from(DecisionLog)
         .join(RequestLog, DecisionLog.request_id == RequestLog.id)
         .where(and_(
             DecisionLog.created_at >= last_15m,
             DecisionLog.risk_score > med_th,
-            RequestLog.user_id.isnot(None)  # Ensure we have user_id
+            RequestLog.identity_id.isnot(None),
+            RequestLog.client_id == client_id  # ✅ Filter
         ))
     )
     suspicious_sessions = sess_result.scalar() or 0
@@ -135,13 +174,13 @@ async def get_dashboard_stats(db: AsyncSession = Depends(get_db)):
 
 @router.get("/traffic", response_model=TrafficResponse)
 async def get_traffic_data(
+    current_client: Client = Depends(require_active_client),  # ✅ Authentication
     timeframe: str = Query("15m", regex="^(15m|1h|24h)$"),
     db: AsyncSession = Depends(get_db)
 ):
-    """
-    Uses DB-side date_trunc bucketing instead of Python-side looping over a
-    full result set, which avoids O(rows × buckets) work in the application.
-    """
+    """Get traffic data for the authenticated client only."""
+    client_id = current_client.id  # ✅ Filter by this client
+    
     now = datetime.utcnow()
     high_th, _ = get_adaptive_thresholds()
 
@@ -151,7 +190,6 @@ async def get_traffic_data(
         start_time = now - timedelta(minutes=15)
         interval_minutes = 1
     elif timeframe == "1h":
-        # 5-minute buckets for 1 hour = 12 points
         trunc_unit = "minute"
         points = 12
         start_time = now - timedelta(hours=1)
@@ -162,13 +200,16 @@ async def get_traffic_data(
         start_time = now - timedelta(hours=24)
         interval_minutes = 60
 
-    # ── Single query per table: DB aggregates, not Python ───────────────────
+    # ── Single query per table: DB aggregates ───────────────────
     request_rows = (await db.execute(
         select(
             func.date_trunc(trunc_unit, RequestLog.created_at).label("bucket"),
             func.count().label("cnt")
         )
-        .where(RequestLog.created_at >= start_time)
+        .where(and_(
+            RequestLog.created_at >= start_time,
+            RequestLog.client_id == client_id  # ✅ Filter
+        ))
         .group_by("bucket")
         .order_by("bucket")
     )).all()
@@ -180,7 +221,8 @@ async def get_traffic_data(
         )
         .where(and_(
             DecisionLog.created_at >= start_time,
-            DecisionLog.risk_score > high_th
+            DecisionLog.risk_score > high_th,
+            DecisionLog.client_id == client_id  # ✅ Filter
         ))
         .group_by("bucket")
         .order_by("bucket")
@@ -189,14 +231,12 @@ async def get_traffic_data(
     req_by_bucket = {row.bucket: row.cnt for row in request_rows}
     anom_by_bucket = {row.bucket: row.cnt for row in decision_rows}
 
-    # For 1h timeframe, re-bucket minute-level rows into 5-minute slots in Python
     data_points = []
     for i in range(points):
         bucket_start = start_time + timedelta(minutes=interval_minutes * i)
         bucket_end = bucket_start + timedelta(minutes=interval_minutes)
 
         if timeframe == "1h":
-            # Aggregate minute-level buckets into 5-min slots
             requests = sum(
                 v for k, v in req_by_bucket.items()
                 if bucket_start <= k < bucket_end
@@ -206,7 +246,6 @@ async def get_traffic_data(
                 if bucket_start <= k < bucket_end
             )
         else:
-            # Direct lookup — one entry per bucket
             requests = req_by_bucket.get(bucket_start, 0)
             anomalies = anom_by_bucket.get(bucket_start, 0)
 
@@ -222,21 +261,21 @@ async def get_traffic_data(
 
 @router.get("/suspicious-users", response_model=List[SuspiciousUserResponse])
 async def get_suspicious_users(
+    current_client: Client = Depends(require_active_client),  # ✅ Authentication
     limit: int = Query(10, ge=1, le=50),
     db: AsyncSession = Depends(get_db)
 ):
-    """
-    Returns users with suspicious activity (medium+ risk scores) in the last 15 minutes.
-    """
+    """Get suspicious users for the authenticated client only."""
+    client_id = current_client.id  # ✅ Filter by this client
+    
     now = datetime.utcnow()
     last_15m = now - timedelta(minutes=15)
     high_th, med_th = get_adaptive_thresholds()
 
-    # Simple query - use MIN or MAX to get any IP (PostgreSQL compatible)
     result = await db.execute(
         select(
-            RequestLog.user_id.label("user_id"),
-            func.min(RequestLog.ip_address).label("ip"),  # or func.max()
+            RequestLog.identity_id.label("identity_id"),
+            func.min(RequestLog.ip_address).label("ip"),
             func.max(DecisionLog.risk_score).label("max_risk"),
             func.max(DecisionLog.created_at).label("last_seen"),
             func.max(DecisionLog.explanation).label("reason"),
@@ -248,9 +287,10 @@ async def get_suspicious_users(
         .where(and_(
             DecisionLog.created_at >= last_15m,
             DecisionLog.risk_score > med_th,
-            RequestLog.user_id.isnot(None),
+            RequestLog.identity_id.isnot(None),
+            RequestLog.client_id == client_id  # ✅ Filter
         ))
-        .group_by(RequestLog.user_id)
+        .group_by(RequestLog.identity_id)
         .having(func.max(DecisionLog.risk_score) > med_th)
         .order_by(func.max(DecisionLog.risk_score).desc())
         .limit(limit)
@@ -258,7 +298,7 @@ async def get_suspicious_users(
 
     suspicious_users = []
     for row in result.all():
-        user_id = row.user_id
+        identity_id = row.identity_id
         ip = row.ip or "unknown"
         risk_score = row.max_risk or 0
         last_seen = row.last_seen
@@ -278,8 +318,8 @@ async def get_suspicious_users(
             status = "low"
 
         suspicious_users.append(SuspiciousUserResponse(
-            id=str(user_id),
-            user_id=user_id,
+            id=identity_id,
+            identity_id=identity_id,
             violations=violations,
             threat_score=round(risk_score, 2),
             status=status,
@@ -291,11 +331,16 @@ async def get_suspicious_users(
 
     return suspicious_users
 
+
 @router.get("/alerts", response_model=List[AlertResponse])
 async def get_recent_alerts(
+    current_client: Client = Depends(require_active_client),  # ✅ Authentication
     limit: int = Query(10, ge=1, le=50),
     db: AsyncSession = Depends(get_db)
 ):
+    """Get alerts for the authenticated client only."""
+    client_id = current_client.id  # ✅ Filter by this client
+    
     now = datetime.utcnow()
     last_15m = now - timedelta(minutes=15)
     high_th, _ = get_adaptive_thresholds()
@@ -308,12 +353,13 @@ async def get_recent_alerts(
             DecisionLog.action,
             DecisionLog.reason,
             DecisionLog.created_at,
-            DecisionLog.user_id
+            DecisionLog.identity_id
         )
         .join(RequestLog, DecisionLog.request_id == RequestLog.id)
         .where(and_(
             DecisionLog.created_at >= last_15m,
-            DecisionLog.risk_score > high_th
+            DecisionLog.risk_score > high_th,
+            RequestLog.client_id == client_id  # ✅ Filter
         ))
         .order_by(DecisionLog.risk_score.desc())
         .limit(limit)
@@ -339,7 +385,7 @@ async def get_recent_alerts(
             score=round(risk_score, 2),
             type=alert_type,
             timestamp=row[5],
-            user_id=str(row[6]) if row[6] else None,
+            identity_id=row[6],
         ))
 
     return alerts
@@ -347,10 +393,14 @@ async def get_recent_alerts(
 
 @router.get("/logs", response_model=List[LogResponse])
 async def get_decision_logs(
+    current_client: Client = Depends(require_active_client),  # ✅ Authentication
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db)
 ):
+    """Get logs for the authenticated client only."""
+    client_id = current_client.id  # ✅ Filter by this client
+    
     offset = (page - 1) * limit
     high_th, med_th = get_adaptive_thresholds()
 
@@ -358,7 +408,7 @@ async def get_decision_logs(
         select(
             DecisionLog.id,
             DecisionLog.request_uuid,
-            DecisionLog.user_id,
+            DecisionLog.identity_id,
             RequestLog.endpoint,
             RequestLog.ip_address,
             DecisionLog.action,
@@ -369,6 +419,7 @@ async def get_decision_logs(
             DecisionLog.created_at
         )
         .join(RequestLog, DecisionLog.request_id == RequestLog.id)
+        .where(RequestLog.client_id == client_id)  # ✅ Filter
         .order_by(DecisionLog.created_at.desc())
         .offset(offset)
         .limit(limit)
@@ -388,7 +439,7 @@ async def get_decision_logs(
         logs.append(LogResponse(
             id=row[0],
             request_uuid=row[1],
-            user_id=row[2],
+            identity_id=row[2],
             endpoint=row[3],
             ip_address=row[4] or "unknown",
             action=row[5],
@@ -408,22 +459,48 @@ async def get_decision_logs(
 
 @router.get("/user/{user_id}", response_model=dict)
 async def get_user_details(
-    user_id: int,
+    user_id: str,
+    current_client: Client = Depends(require_active_client),  # ✅ Authentication
+    client_id: int | None = Query(None, description="Client/tenant ID that owns this identity, if known"),
     db: AsyncSession = Depends(get_db)
 ):
+    """Get user details for the authenticated client only."""
+    auth_client_id = current_client.id  # ✅ The authenticated client
+    
+    identity_id = user_id
+    
+    # ✅ Ensure the user belongs to the authenticated client
+    if client_id is not None and client_id != auth_client_id:
+        raise HTTPException(status_code=403, detail="Access denied to this client's data")
+    
     now = datetime.utcnow()
     last_15m = now - timedelta(minutes=15)
     high_th, med_th = get_adaptive_thresholds()
 
-    # ── 1 query: total requests ──────────────────────────────────────────────
+    # ── Verify user belongs to this client ──
+    if client_id is None:
+        result = await db.execute(
+            select(RequestLog.client_id)
+            .where(RequestLog.identity_id == identity_id)
+            .order_by(RequestLog.created_at.desc())
+            .limit(1)
+        )
+        resolved_client_id = result.scalar()
+        if resolved_client_id is not None and resolved_client_id != auth_client_id:
+            raise HTTPException(status_code=403, detail="Access denied to this user's data")
+        client_id = resolved_client_id
+
+    # ── 1 query: total requests ──
     total_result = await db.execute(
         select(func.count(RequestLog.id))
-        .where(RequestLog.user_id == user_id)
+        .where(and_(
+            RequestLog.identity_id == identity_id,
+            RequestLog.client_id == auth_client_id  # ✅ Filter
+        ))
     )
     total_requests = total_result.scalar() or 0
 
-    # ── FIXED: 1 query for violations (medium+ high), MAX risk, AVG risk ─────
-    # Now uses med_th instead of hardcoded 0.6
+    # ── 2 query: violations and risk ──
     risk_result = await db.execute(
         select(
             func.sum(case((DecisionLog.risk_score > med_th, 1), else_=0)).label("violations"),
@@ -431,21 +508,25 @@ async def get_user_details(
             func.avg(DecisionLog.risk_score).label("avg_risk"),
         )
         .where(and_(
-            DecisionLog.user_id == user_id,
+            DecisionLog.identity_id == identity_id,
             DecisionLog.created_at >= last_15m,
+            DecisionLog.client_id == auth_client_id  # ✅ Filter
         ))
     )
     risk_row = risk_result.one()
     
     violations = risk_row.violations or 0
-    current_risk = risk_row.max_risk or 0  # MAX risk for current display
-    avg_risk = risk_row.avg_risk or 0      # AVG risk for trend analysis
+    current_risk = risk_row.max_risk or 0
+    avg_risk = risk_row.avg_risk or 0
 
-    # ── 1 query: recent actions ──────────────────────────────────────────────
+    # ── 3 query: recent actions ──
     actions_result = await db.execute(
         select(DecisionLog.action, DecisionLog.created_at,
                DecisionLog.reason, DecisionLog.risk_score)
-        .where(DecisionLog.user_id == user_id)
+        .where(and_(
+            DecisionLog.identity_id == identity_id,
+            DecisionLog.client_id == auth_client_id  # ✅ Filter
+        ))
         .order_by(DecisionLog.created_at.desc())
         .limit(10)
     )
@@ -454,25 +535,29 @@ async def get_user_details(
         for row in actions_result.all()
     ]
 
-    # ── 1 query: IP history (distinct IPs used by this user) ─────────────────
+    # ── 4 query: IP history ──
     ip_result = await db.execute(
         select(RequestLog.ip_address)
-        .where(RequestLog.user_id == user_id)
+        .where(and_(
+            RequestLog.identity_id == identity_id,
+            RequestLog.client_id == auth_client_id  # ✅ Filter
+        ))
         .distinct()
         .limit(10)
     )
     ip_history = [row[0] for row in ip_result.all() if row[0]]
 
-    # ── Redis: block state ───────────────────────────────────────────────────
-    is_blocked = await StateManager.is_blocked(user_id)
+    # ── Redis: block state ──
+    is_blocked = await StateManager.is_blocked(_IdentityRef(client_id, identity_id))
 
     return {
-        "user_id": user_id,
-        "is_anonymous": user_id > 2 ** 60,  # Your anonymous ID range
+        "identity_id": identity_id,
+        "client_id": client_id,
+        "is_anonymous": client_id is None,
         "total_requests": total_requests,
-        "violations": violations,  # Now counts medium + high risk consistently
-        "current_risk_score": round(current_risk, 2),  # MAX risk in last 15 min
-        "avg_risk_score": round(avg_risk, 2),  # AVG risk for trend
+        "violations": violations,
+        "current_risk_score": round(current_risk, 2),
+        "avg_risk_score": round(avg_risk, 2),
         "is_blocked": is_blocked,
         "recent_actions": recent_actions,
         "ip_history": ip_history,
@@ -480,7 +565,14 @@ async def get_user_details(
 
 
 @router.get("/ip/{ip}/trend")
-async def get_ip_trend(ip: str, db: AsyncSession = Depends(get_db)):
+async def get_ip_trend(
+    ip: str,
+    current_client: Client = Depends(require_active_client),  # ✅ Authentication
+    db: AsyncSession = Depends(get_db)
+):
+    """Get IP trend data for the authenticated client only."""
+    client_id = current_client.id  # ✅ Filter by this client
+    
     last_1h = datetime.utcnow() - timedelta(hours=1)
 
     result = await db.execute(
@@ -489,6 +581,7 @@ async def get_ip_trend(ip: str, db: AsyncSession = Depends(get_db)):
         .where(and_(
             RequestLog.ip_address == ip,
             DecisionLog.created_at >= last_1h,
+            RequestLog.client_id == client_id  # ✅ Filter
         ))
         .order_by(DecisionLog.created_at)
     )
@@ -498,70 +591,101 @@ async def get_ip_trend(ip: str, db: AsyncSession = Depends(get_db)):
 
 @router.post("/user/{user_id}/block")
 async def block_user(
-    user_id: int,
+    user_id: str,
+    current_client: Client = Depends(require_active_client),  # ✅ Authentication
     duration: int = Query(3600, description="Block duration in seconds"),
+    client_id: int | None = Query(None, description="Client/tenant ID that owns this identity, if known"),
     db: AsyncSession = Depends(get_db)
 ):
-    """Block a user for the specified duration."""
+    """Block an identity for the specified duration."""
+    auth_client_id = current_client.id
+    identity_id = user_id
+    
+    # ✅ Verify user belongs to this client
+    resolved_client_id = await _resolve_client_id(db, identity_id, client_id)
+    if resolved_client_id is not None and resolved_client_id != auth_client_id:
+        raise HTTPException(status_code=403, detail="Access denied to this user")
+    
     try:
-        await StateManager.block_user(user_id, duration)
-        logger.info(f"User {user_id} blocked for {duration} seconds")
+        await StateManager.block_identity(_IdentityRef(resolved_client_id, identity_id), duration)
+        logger.info(f"Identity {identity_id} blocked for {duration} seconds by client {auth_client_id}")
         return {
             "success": True,
-            "message": f"User {user_id} blocked for {duration} seconds",
-            "user_id": user_id,
+            "message": f"Identity {identity_id} blocked for {duration} seconds",
+            "identity_id": identity_id,
             "duration": duration,
         }
     except Exception as e:
-        logger.error(f"Failed to block user {user_id}: {e}")
+        logger.error(f"Failed to block identity {identity_id}: {e}")
         return {"success": False, "error": str(e)}
 
 
 @router.post("/user/{user_id}/unblock")
 async def unblock_user(
-    user_id: int,
+    user_id: str,
+    current_client: Client = Depends(require_active_client),  # ✅ Authentication
+    client_id: int | None = Query(None, description="Client/tenant ID that owns this identity, if known"),
     db: AsyncSession = Depends(get_db)
 ):
-    """Unblock a user."""
+    """Unblock an identity."""
+    auth_client_id = current_client.id
+    identity_id = user_id
+    
+    # ✅ Verify user belongs to this client
+    resolved_client_id = await _resolve_client_id(db, identity_id, client_id)
+    if resolved_client_id is not None and resolved_client_id != auth_client_id:
+        raise HTTPException(status_code=403, detail="Access denied to this user")
+    
     try:
-        await StateManager.delete(f"user:{user_id}:blocked")
-        logger.info(f"User {user_id} unblocked")
+        base = StateManager._base(resolved_client_id, identity_id)
+        await StateManager.delete(f"{base}:blocked")
+        logger.info(f"Identity {identity_id} unblocked by client {auth_client_id}")
         return {
             "success": True,
-            "message": f"User {user_id} unblocked",
-            "user_id": user_id,
+            "message": f"Identity {identity_id} unblocked",
+            "identity_id": identity_id,
         }
     except Exception as e:
-        logger.error(f"Failed to unblock user {user_id}: {e}")
+        logger.error(f"Failed to unblock identity {identity_id}: {e}")
         return {"success": False, "error": str(e)}
 
 
 @router.post("/user/{user_id}/warning")
 async def send_warning(
-    user_id: int,
+    user_id: str,
+    current_client: Client = Depends(require_active_client),  # ✅ Authentication
     message: str = Query(
         "Suspicious activity detected on your account",
         description="Warning message"
     ),
+    client_id: int | None = Query(None, description="Client/tenant ID that owns this identity, if known"),
     db: AsyncSession = Depends(get_db)
 ):
-    """Send a warning to a user (logs the warning)."""
+    """Send a warning to an identity (logs the warning)."""
+    auth_client_id = current_client.id
+    identity_id = user_id
+    
+    # ✅ Verify user belongs to this client
+    resolved_client_id = await _resolve_client_id(db, identity_id, client_id)
+    if resolved_client_id is not None and resolved_client_id != auth_client_id:
+        raise HTTPException(status_code=403, detail="Access denied to this user")
+    
     try:
         warning_log = WarningLog(
-            user_id=user_id,
+            identity_id=identity_id,
+            client_id=resolved_client_id,
             message=message,
             created_at=datetime.utcnow(),
         )
         db.add(warning_log)
         await db.commit()
-        logger.info(f"Warning sent to user {user_id}")
+        logger.info(f"Warning sent to identity {identity_id} by client {auth_client_id}")
         return {
             "success": True,
-            "message": f"Warning sent to user {user_id}",
-            "user_id": user_id,
+            "message": f"Warning sent to identity {identity_id}",
+            "identity_id": identity_id,
             "warning_message": message,
         }
     except Exception as e:
-        logger.error(f"Failed to send warning to user {user_id}: {e}")
+        logger.error(f"Failed to send warning to identity {identity_id}: {e}")
         return {"success": False, "error": str(e)}
-
