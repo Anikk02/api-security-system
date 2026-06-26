@@ -3,14 +3,14 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from app.core.config import settings
 
 # Concurrency control
-DB_CONCURRENCY_LIMIT = 100
+DB_CONCURRENCY_LIMIT = 200
 db_semaphore = asyncio.Semaphore(DB_CONCURRENCY_LIMIT)
 
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=False,
-    pool_size=50,
-    max_overflow=100,
+    pool_size=200,
+    max_overflow=300,
     pool_timeout=10,
     pool_recycle=1800,
     pool_pre_ping=True,
