@@ -22,7 +22,6 @@ CONTROL_PLANE_PREFIXES = [
     "/api/auth",
     "/api/client",
     "/api-keys",
-    "/api/dashboard",
     "/api/settings",
     "/api/activity",
     "/api/client/keys",
@@ -50,6 +49,9 @@ class RequestMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         start_time = time.time()
         request.state.request_uuid = str(uuid.uuid4())
+        
+        # Detailed timing tracking
+        timings = {}
 
         logger.info(
             f"{request.method} {request.url.path} | "
@@ -59,44 +61,62 @@ class RequestMiddleware(BaseHTTPMiddleware):
         try:
             # SAFE ENDPOINT BYPASS (before identity - zero DB cost)
             if any(request.url.path.startswith(p) for p in CONTROL_PLANE_PREFIXES):
+                t0 = time.time()
                 response = await call_next(request)
+                timings['call_next'] = time.time() - t0
+                timings['total'] = time.time() - start_time
+                
                 response.headers["X-Request-UUID"] = request.state.request_uuid
+                response.headers["X-Process-Time"] = f"{timings['total']:.4f}"
+                
+                # Log bypass with timing
+                logger.info(
+                    f"BYPASS: {request.url.path} | "
+                    f"total={timings['total']:.3f}s | "
+                    f"call_next={timings['call_next']:.3f}s | "
+                    f"req_uuid={request.state.request_uuid}"
+                )
                 return response
             
-            # ── 1. IDENTITY + SIGNALS (cheap) ─────────────────────────────
+            # ── 1. IDENTITY + SIGNALS ─────────────────────────────────────────
+            t0 = time.time()
             from app.db.session import AsyncSessionLocal
             async with AsyncSessionLocal() as db:
                 identity = await resolve_identity(request, db)
+            timings['identity_resolution'] = time.time() - t0
 
+            t0 = time.time()
             signals = await extract_signals(request)
+            timings['signals_extract'] = time.time() - t0
+            
             label = request.headers.get("X-Simulated-Label")
 
-            # ── 2. FAST-PATH DECISION (1 Redis pipeline - 2 reads) ────────
-            #
-            # ✅ FIX: Pass IP for IP block checking
-            # This now checks BOTH user and IP blocks in a single pipeline
-            #
+            # ── 2. FAST-PATH DECISION ─────────────────────────────────────────
+            t0 = time.time()
             blocked, risk_score, throttled = await StateManager.get_decision_signals(
                 identity,
                 identity.behavioral_fingerprint
             )
+            timings['redis_decision'] = time.time() - t0
 
-            # Determine action based on fast-path signals
-            action, reason = await _fast_decision(blocked, throttled, risk_score)
-
-            # ── 3. TRACK THIS REQUEST (fire-and-forget pipeline) ──────────
-            # One pipelined ZADD+SADD. Does NOT block the response.
+            # ── 3. TRACK REQUEST ──────────────────────────────────────────────
+            t0 = time.time()
             asyncio.ensure_future(
                 StateManager.track_request_async(
                     identity=identity,
                     endpoint=signals.endpoint,
-                    status_code=None,   # unknown yet; updated in background
+                    status_code=None,
                 )
             )
+            timings['track_request'] = time.time() - t0
 
-            # ── 4. BLOCK FAST PATH ────────────────────────────────────────
+            # ── 4. DECISION ────────────────────────────────────────────────────
+            t0 = time.time()
+            action, reason = await _fast_decision(blocked, throttled, risk_score)
+            timings['fast_decision'] = time.time() - t0
+
+            # ── 5. BLOCK FAST PATH ────────────────────────────────────────────
             if action == "block":
-                # Kick off background to still log + update reputation
                 asyncio.ensure_future(
                     run_analysis_pipeline(
                         identity=identity,
@@ -120,20 +140,32 @@ class RequestMiddleware(BaseHTTPMiddleware):
                     }
                 )
                 
-                # Set cookie if this is a first-time user (even on block)
                 set_user_cookie_if_needed(request, response)
+                
+                timings['total'] = time.time() - start_time
+                response.headers["X-Process-Time"] = f"{timings['total']:.4f}"
+                
+                # Log block with detailed timings
+                logger.info(
+                    f"BLOCK: user={identity.identity_id} | "
+                    f"total={timings['total']:.3f}s | "
+                    f"identity={timings['identity_resolution']:.3f}s | "
+                    f"redis={timings['redis_decision']:.3f}s | "
+                    f"timings={timings} | "
+                    f"req_uuid={request.state.request_uuid}"
+                )
                 
                 return response
 
-            # ── 5. RATE LIMITING CHECK (Sliding Window) ───────────────────
+            # ── 6. RATE LIMITING CHECK ────────────────────────────────────────
+            t0 = time.time()
             limiter = strict_limiter if risk_score > 0.6 else minute_limiter
             rate_key = f"client:{identity.client_id}:identity:{identity.identity_id}"
-
             allowed, count, retry_after = await limiter.check_and_allow(rate_key)
+            timings['rate_limit'] = time.time() - t0
 
-            # ── 6. RATE LIMITED PATH (429) ─────────────────────────────────
+            # ── 7. RATE LIMITED PATH ──────────────────────────────────────────
             if not allowed:
-                # Still run background analysis
                 asyncio.ensure_future(
                     run_analysis_pipeline(
                         identity=identity,
@@ -163,20 +195,31 @@ class RequestMiddleware(BaseHTTPMiddleware):
                     }
                 )
                 
-                # Set cookie if this is a first-time user
                 set_user_cookie_if_needed(request, response)
+                
+                timings['total'] = time.time() - start_time
+                response.headers["X-Process-Time"] = f"{timings['total']:.4f}"
+                
+                # Log rate limit with detailed timings
+                logger.info(
+                    f"RATE_LIMIT: user={identity.identity_id} | "
+                    f"total={timings['total']:.3f}s | "
+                    f"identity={timings['identity_resolution']:.3f}s | "
+                    f"redis={timings['redis_decision']:.3f}s | "
+                    f"rate_limit={timings['rate_limit']:.3f}s | "
+                    f"timings={timings} | "
+                    f"req_uuid={request.state.request_uuid}"
+                )
                 
                 return response
             
-            # ── 7. THROTTLED USERS (flag from penalty_manager) ───────────
+            # ── 8. THROTTLED USERS ────────────────────────────────────────────
             if throttled:
-                # The flag means they're already being rate-limited elsewhere
-                # Just process the request normally
-    
+                t0 = time.time()
                 response = await call_next(request)
+                timings['call_next'] = time.time() - t0
                 process_time = time.time() - start_time
     
-                # Add throttle headers to inform them
                 response.headers["X-RateLimit-Limit"] = "100"
                 response.headers["X-RateLimit-Remaining"] = "0"
                 response.headers["X-RateLimit-Reset"] = "60"
@@ -184,13 +227,6 @@ class RequestMiddleware(BaseHTTPMiddleware):
                 response.headers["X-Process-Time"] = f"{process_time:.4f}"
                 response.headers["X-Throttled"] = "true"
     
-                logger.info(
-                    f"user={identity.identity_id} | action=throttle (flag active) | "
-                    f"status={response.status_code} | time={process_time:.4f}s | "
-                    f"req_uuid={request.state.request_uuid}"
-                )
-    
-                # Background analysis
                 asyncio.ensure_future(
                     run_analysis_pipeline(
                         identity=identity,
@@ -202,31 +238,34 @@ class RequestMiddleware(BaseHTTPMiddleware):
                     )
                 )
                 
-                # Set cookie if this is a first-time user
                 set_user_cookie_if_needed(request, response)
+                
+                timings['total'] = process_time
+                
+                # Log throttled with detailed timings
+                logger.info(
+                    f"THROTTLED: user={identity.identity_id} | "
+                    f"total={timings['total']:.3f}s | "
+                    f"identity={timings['identity_resolution']:.3f}s | "
+                    f"redis={timings['redis_decision']:.3f}s | "
+                    f"call_next={timings['call_next']:.3f}s | "
+                    f"timings={timings} | "
+                    f"req_uuid={request.state.request_uuid}"
+                )
                 
                 return response
 
-            # ── 8. NORMAL FLOW ────────────────────────────────────────────
+            # ── 9. NORMAL FLOW ────────────────────────────────────────────────
+            t0 = time.time()
             response = await call_next(request)
+            timings['call_next'] = time.time() - t0
             process_time = time.time() - start_time
-
-            logger.info(
-                f"user={identity.identity_id} | action={action} | "
-                f"status={response.status_code} | time={process_time:.4f}s | "
-                f"req_uuid={request.state.request_uuid}"
-            )
 
             response.headers["X-Request-UUID"] = request.state.request_uuid
             response.headers["X-Process-Time"] = f"{process_time:.4f}"
 
-            # ── 9. SET USER COOKIE (if first-time user) ──────────────────
-            # This must happen BEFORE the response is returned
             set_user_cookie_if_needed(request, response)
 
-            # ── 10. BACKGROUND ANALYSIS ────────────────────────────────────
-            # Runs AFTER response is sent. Updates risk_score, reputation,
-            # feature log, DB — all invisible to this request's latency.
             asyncio.ensure_future(
                 run_analysis_pipeline(
                     identity=identity,
@@ -238,50 +277,47 @@ class RequestMiddleware(BaseHTTPMiddleware):
                 )
             )
 
+            timings['total'] = process_time
+            
+            # Log normal flow with detailed timings
+            logger.info(
+                f"NORMAL: user={identity.identity_id} | action={action} | "
+                f"status={response.status_code} | "
+                f"total={timings['total']:.3f}s | "
+                f"identity={timings['identity_resolution']:.3f}s | "
+                f"redis={timings['redis_decision']:.3f}s | "
+                f"rate_limit={timings['rate_limit']:.3f}s | "
+                f"call_next={timings['call_next']:.3f}s | "
+                f"timings={timings} | "
+                f"req_uuid={request.state.request_uuid}"
+            )
+
             return response
 
         except Exception as e:
-            logger.exception(f"Middleware error: {e}")
+            logger.exception(f"Middleware error: {e} | timings={timings}")
             response = JSONResponse(
                 status_code=500,
                 content={"detail": "Internal middleware error"},
             )
-            # Even on error, try to set cookie if it was a first-time user
             set_user_cookie_if_needed(request, response)
+            response.headers["X-Process-Time"] = f"{time.time() - start_time:.4f}"
             return response
 
 
 # ── FAST DECISION LOGIC ──────────────────────────────────────────────────────
-#
-# This is the ONLY decision logic in the hot path.
-# Reads pre-computed Redis signals. No math, no loops, no DB.
-#
 async def _fast_decision(blocked: bool, throttled: bool, risk_score: float) -> tuple[str, str]:
     """
     Returns (action, reason) using only pre-computed Redis signals.
-
-    Args:
-        blocked: User or IP is blocked
-        throttled: User is in throttle state
-        risk_score: Pre-computed risk score from previous analysis
     """
-    
-    # Highest priority: Blocked users
     if blocked:
         return "block", "User or IP is temporarily blocked"
-    
-    # Throttled users
     if throttled:
         return "throttle", "Rate limit active"
-    
-    # Risk-based decisions (thresholds mirror penalty_manager)
     if risk_score > 0.70:
         return "block", "Severe risk score detected"
-    
     if risk_score > 0.50:
         return "throttle", "High risk detected"
-    
     if risk_score > 0.45:
         return "throttle", "Suspicious activity detected"
-    
     return "allow", "Normal traffic"
