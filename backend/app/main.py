@@ -16,7 +16,6 @@ from app.db.models import (
     clients, api_key, request_log, decision_log, 
     feature_log, ml_prediction, feedback, refresh_token, password_reset_token
 )
-
 # Import API routes
 from app.api.routes import dashboard
 from app.api.routes.activity import router as activity_router
