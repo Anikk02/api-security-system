@@ -6,7 +6,6 @@ import asyncio
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.background import BackgroundTasks
 
 from app.identity.resolver import resolve_identity, set_user_cookie_if_needed
 from app.identity.signals import extract_signals
@@ -114,6 +113,15 @@ class RequestMiddleware(BaseHTTPMiddleware):
             t0 = time.time()
             action, reason = await _fast_decision(blocked, throttled, risk_score)
             timings['fast_decision'] = time.time() - t0
+
+            # _fast_decision can recommend "throttle" purely from risk_score
+            # even when the Redis-cached `throttled` flag isn't set yet (e.g.
+            # the first request that crosses the threshold, before the
+            # background pipeline has persisted it). Fold that into
+            # `throttled` so step 8 below actually acts on it instead of
+            # silently falling through to normal flow.
+            if action == "throttle":
+                throttled = True
 
             # ── 5. BLOCK FAST PATH ────────────────────────────────────────────
             if action == "block":
