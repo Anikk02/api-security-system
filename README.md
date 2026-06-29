@@ -45,7 +45,7 @@ The system is designed to:
                     Incoming Request
                             │
                             ▼
-                 Python SDK (Optional)
+                        Python SDK
                             │
                             ▼
                 API Key Authentication
