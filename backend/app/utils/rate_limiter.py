@@ -6,7 +6,7 @@ logger = logging.getLogger(__name__)
 
 
 class SlidingWindowRateLimiter:
-    """Sliding window rate limiter"""
+    """Sliding window rate limiter - industry standard"""
     
     def __init__(self, max_requests: int = 60, window_seconds: int = 60):
         self.max_requests = max_requests
@@ -41,8 +41,14 @@ class SlidingWindowRateLimiter:
             
             results = await pipe.execute()
             current_count = results[1]  # ZCARD result
-            
-            if current_count > self.max_requests:
+
+            # NOTE: zcard above runs BEFORE this request's own zadd, so
+            # current_count is the count *excluding* this request. This
+            # request itself is always added to the set regardless of the
+            # outcome below, so the comparison must be >= (not >) or the
+            # max_requests-th request in a window gets admitted for free
+            # before enforcement kicks in on the next one.
+            if current_count >= self.max_requests:
                 # Calculate retry time based on oldest request
                 retry_after = await self._get_retry_after(key, now)
                 return False, current_count, retry_after
@@ -71,4 +77,4 @@ class SlidingWindowRateLimiter:
 # Default limiters for different scenarios
 minute_limiter = SlidingWindowRateLimiter(max_requests=60, window_seconds=60)  # 60 req/min
 second_limiter = SlidingWindowRateLimiter(max_requests=10, window_seconds=1)   # 10 req/sec
-strict_limiter = SlidingWindowRateLimiter(max_requests=30, window_seconds=60)  # 30 req/min for high risk
+strict_limiter = SlidingWindowRateLimiter(max_requests=30, window_seconds=60)  # 30 req/min for high risk .
