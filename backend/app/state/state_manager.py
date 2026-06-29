@@ -101,9 +101,16 @@ class StateManager:
 
     # ─────────────────────────────────────────────────────────────
     # REQUEST TRACKING (aligned keys)
+    #
+    # Fired early (fast path), before the response/status_code
+    # exists - purely behavioral bookkeeping (timestamps,
+    # endpoints, IPs) needed by rate limiting and feature
+    # building. status_code-dependent analytics live in
+    # record_outcome() below instead, since they need the real
+    # outcome, which isn't known yet at this call site.
     # ─────────────────────────────────────────────────────────────
     @staticmethod
-    async def track_request_async(identity, endpoint: str, status_code: int | None):
+    async def track_request_async(identity, endpoint: str, status_code: int | None = None):
         ts = time.time()
 
         client_id = identity.client_id
@@ -117,7 +124,6 @@ class StateManager:
         key_ts = f"{base}:timestamps"
         key_ep = f"{base}:endpoints"
         key_ip = f"{base}:ips"
-        key_err = f"{base}:errors"
 
         pipe.zadd(key_ts, {str(ts): ts})
         pipe.zremrangebyscore(key_ts, 0, ts - 300)
@@ -130,11 +136,28 @@ class StateManager:
         pipe.sadd(key_ip, ip)
         pipe.expire(key_ip, 300)
 
-        if status_code is not None and status_code >= 400:
-            pipe.incr(key_err)
-            pipe.expire(key_err, 300)
+        try:
+            await pipe.execute()
+        except Exception as e:
+            logger.error(f"track_request_async pipeline failed: {e}")
 
-        # ---- CLIENT-LEVEL ANALYTICS ---- #
+    # ─────────────────────────────────────────────────────────────
+    # CLIENT-LEVEL ANALYTICS
+    #
+    # Call this once the real status_code is known (e.g. from
+    # run_analysis_pipeline, after the response has been sent).
+    # This logic used to live inside track_request_async, which
+    # is only ever called with status_code=None - so the
+    # allowed/blocked counts, trend, and peak-blocked tracking
+    # never actually fired.
+    # ─────────────────────────────────────────────────────────────
+    @staticmethod
+    async def record_outcome(identity, endpoint: str, status_code: int):
+        ts = time.time()
+        client_id = identity.client_id
+
+        pipe = redis_client.pipeline()
+
         client_stats_key = f"client:{client_id}:stats"
         client_endpoints_key = f"client:{client_id}:endpoints"
         client_trend_key = f"client:{client_id}:trend"
@@ -142,33 +165,30 @@ class StateManager:
         # -- total requests --
         pipe.hincrby(client_stats_key, "total", 1)
 
-        # --- allowed / blocked ---
-        is_blocked = False
+        is_blocked = status_code >= 400
 
-        if status_code is not None:
-            if status_code >= 400:
-                pipe.hincrby(client_stats_key, "blocked", 1)
-                is_blocked = True
-            else:
-                pipe.hincrby(client_stats_key, "allowed", 1)
-        
+        # --- allowed / blocked ---
+        if is_blocked:
+            pipe.hincrby(client_stats_key, "blocked", 1)
+        else:
+            pipe.hincrby(client_stats_key, "allowed", 1)
+
         # --- endpoint tracking ---
         if endpoint:
             pipe.zincrby(client_endpoints_key, 1, endpoint)
-        
+
         # --- trend tracking (time-series) ---
         trend_point = {
             "time": str(int(ts)),
-            "allowed": 1 if status_code and status_code < 400 else 0,
-            "blocked": 1 if status_code and status_code >= 400 else 0,
-            "throttled":0 # to be extended later
+            "allowed": 0 if is_blocked else 1,
+            "blocked": 1 if is_blocked else 0,
+            "throttled": 0,  # to be extended later
         }
 
         pipe.lpush(client_trend_key, json.dumps(trend_point))
         pipe.ltrim(client_trend_key, 0, 50)
 
-        # PEAK TRACKING 
-
+        # PEAK TRACKING
         if is_blocked:
             peak_blocked_key = f"{client_stats_key}:peak_blocked"
 
@@ -180,11 +200,10 @@ class StateManager:
             pipe.hset(client_stats_key, "peak_time", str(int(ts)))
             pipe.hset(client_stats_key, "peak_endpoint", endpoint or "unknown")
 
-
         try:
             await pipe.execute()
         except Exception as e:
-            logger.error(f"track_request_async pipeline failed: {e}")
+            logger.error(f"record_outcome pipeline failed: {e}")
 
     # ─────────────────────────────────────────────────────────────
     # RATE LIMITING
@@ -273,8 +292,7 @@ class StateManager:
         base = StateManager._base(identity.client_id, identity.identity_id)
         val = await redis_client.get(f"{base}:errors")
         return int(val) if val else 0
-    
-    
+
     @staticmethod
     async def increment_error(identity):
         base = StateManager._base(identity.client_id, identity.identity_id)
@@ -293,7 +311,7 @@ class StateManager:
         key = f"{base}:ips"
         ips = await redis_client.smembers(key)
         return len(ips) if ips else 0
-    
+
     @staticmethod
     async def track_ip(identity, ip: str):
         base = StateManager._base(identity.client_id, identity.identity_id)
@@ -301,7 +319,7 @@ class StateManager:
 
         await redis_client.sadd(key, ip)
         await redis_client.expire(key, 300)
-    
+
     # ─────────────────────────────────────────────────────────────
     # DELETE
     # ─────────────────────────────────────────────────────────────
@@ -319,7 +337,7 @@ class StateManager:
     async def is_blocked(identity) -> bool:
         base = StateManager._base(identity.client_id, identity.identity_id)
         return await redis_client.exists(f"{base}:blocked") == 1
-    
+
     # ─────────────────────────────────────────────────────────────
     # VIOLATIONS (WINDOW-ALIGNED)
     # ─────────────────────────────────────────────────────────────
