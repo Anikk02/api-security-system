@@ -30,13 +30,13 @@ class TrustEngine:
     """
 
     # Relative importance of each signal
-    RISK_WEIGHT = 0.55
+    RISK_WEIGHT = 0.75
     REPUTATION_WEIGHT = 0.20
 
     MAX_VIOLATION_PENALTY = 0.15
-    MAX_REQUEST_PENALTY = 0.05
-    MAX_ERROR_PENALTY = 0.05
-    MAX_IP_ROTATION_PENALTY = 0.10
+    MAX_REQUEST_PENALTY = 0.20
+    MAX_ERROR_PENALTY = 0.20
+    MAX_IP_ROTATION_PENALTY = 0.25
 
     def evaluate(self, ctx: PenaltyContext) -> TrustResult:
 
@@ -69,7 +69,7 @@ class TrustEngine:
 
         trust -= reputation_penalty
 
-        if ctx.combined_reputation >= 0.80:
+        if ctx.combined_reputation >= 0.70:
             reasons.append("Poor reputation")
 
         elif ctx.combined_reputation >= 0.60:
@@ -95,10 +95,10 @@ class TrustEngine:
         # Request Volume
         # -------------------------------------------------
 
-        if ctx.request_count > 40:
-
+        if ctx.request_count > 20:
+            # Request volume – start at 20/min, faster slope
             request_penalty = min(
-                (ctx.request_count - 40) / 200,
+                (ctx.request_count - 20) / 100,
                 self.MAX_REQUEST_PENALTY,
             )
 
@@ -112,10 +112,10 @@ class TrustEngine:
         # Error Count
         # -------------------------------------------------
 
-        if ctx.error_count > 10:
+        if ctx.error_count > 5:
 
             error_penalty = min(
-                ctx.error_count / 300,
+                ctx.error_count / 150,
                 self.MAX_ERROR_PENALTY,
             )
 
@@ -132,7 +132,7 @@ class TrustEngine:
         if ctx.unique_ip_count > 1:
 
             rotation_penalty = min(
-                ctx.unique_ip_count * 0.02,
+                ctx.unique_ip_count * 0.04,
                 self.MAX_IP_ROTATION_PENALTY,
             )
 
@@ -141,7 +141,7 @@ class TrustEngine:
             reasons.append(
                 f"{ctx.unique_ip_count} different IPs observed"
             )
-
+        
         # -------------------------------------------------
         # Recovery Bonus
         # -------------------------------------------------
