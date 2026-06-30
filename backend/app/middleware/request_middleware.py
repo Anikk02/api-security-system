@@ -24,7 +24,12 @@ CONTROL_PLANE_PREFIXES = [
     "/api/settings",
     "/api/activity",
     "/api/client/keys",
-    "/api/usage"
+    "/api/usage",
+    "/api/dashboard",
+    "/api/dashboard/stats",
+    "/api/dashboard/traffic",
+    "/api/dashboard/suspicious-users",
+    "/api/dashboard/logs",
 ]
 
 # Initialize rate limiter
@@ -133,6 +138,7 @@ class RequestMiddleware(BaseHTTPMiddleware):
                         request_uuid=request.state.request_uuid,
                         label=label,
                         fast_risk_score=risk_score,
+                        fast_action=action,
                     )
                 )
 
@@ -182,6 +188,7 @@ class RequestMiddleware(BaseHTTPMiddleware):
                         request_uuid=request.state.request_uuid,
                         label=label,
                         fast_risk_score=risk_score,
+                        fast_action=action,
                     )
                 )
 
@@ -243,6 +250,7 @@ class RequestMiddleware(BaseHTTPMiddleware):
                         request_uuid=request.state.request_uuid,
                         label=label,
                         fast_risk_score=risk_score,
+                        fast_action=action,
                     )
                 )
                 
@@ -282,6 +290,7 @@ class RequestMiddleware(BaseHTTPMiddleware):
                     request_uuid=request.state.request_uuid,
                     label=label,
                     fast_risk_score=risk_score,
+                    fast_action=action,
                 )
             )
 
@@ -316,16 +325,16 @@ class RequestMiddleware(BaseHTTPMiddleware):
 # ── FAST DECISION LOGIC ──────────────────────────────────────────────────────
 async def _fast_decision(blocked: bool, throttled: bool, risk_score: float) -> tuple[str, str]:
     """
-    Returns (action, reason) using only pre-computed Redis signals.
+    Fast path - applies pre-computed decisions from Redis.
+    
+    This function does NOT make decisions. It only reads and applies
+    the state already computed by the Policy Manager and stored in Redis.
     """
     if blocked:
-        return "block", "User or IP is temporarily blocked"
+        return "block", "Identity blocked due to policy violation"
+    
     if throttled:
-        return "throttle", "Rate limit active"
-    if risk_score > 0.70:
-        return "block", "Severe risk score detected"
-    if risk_score > 0.50:
-        return "throttle", "High risk detected"
-    if risk_score > 0.45:
-        return "throttle", "Suspicious activity detected"
-    return "allow", "Normal traffic"
+        return "throttle", "Identity is rate-limited (policy enforced)"
+    
+    # Default allow - Policy Manager will evaluate in background
+    return "allow", "Identity is not under any active restriction"
