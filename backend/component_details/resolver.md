@@ -18,30 +18,191 @@ The Identity Resolver is a multi-tenant gateway component. It assigns a **consis
 ---
 
 ## 🧱 Structure
+## 🧱 Identity Model
 
 ```python
-class ClientTenantIdentity:
-    tenant_id: int              # Database internal ID of the B2B client application
-    api_key: str | None         # Original API key (or masked identifier token)
-    is_active: bool             # Global active/suspended flag for the client account
-    
-    # End-User tracking attributes (scoped tightly inside this specific tenant)
-    end_user_ip: str | None     # True remote device network address of the client's user
-    behavioral_fingerprint: str # Isolated unique fingerprint for this specific user session
+class Identity:
+    identity_id: str                 # Composite identity (api:<key>:user:<identifier>)
+    client_id: int | None            # Tenant (API owner)
+    api_key: str | None
+    is_anonymous: bool
+
+    ip_address: str | None
+    behavioral_fingerprint: str | None
+    api_key_id: int |None
+
+    user_identifier_type: str | None
+    user_identifier_value: str | None
+    is_persistent: bool
 ```
 
-### 🔄 Flow Integration
+### Identity Components
+
+The resolver separates **Tenant Identity** from **End-User Identity**.
+
+| Component | Purpose |
+|-----------|----------|
+| Client ID | Identifies the API customer (tenant) |
+| API Key ID | Internal API key record |
+| User Identifier | Identifies the downstream user inside that tenant |
+| Behavioral Fingerprint | Tracks request behavior |
+| IP Address | Network origin |
+| Composite Identity | Complete unique identity used throughout the security pipeline |
+
+Example:
+
+```
+api:25:user:9d8d66a8-acde...
+```
+
+This means:
+
+- API Key #25
+- End-user UUID `9d8d66...`
+
+Every downstream security engine uses this composite identity instead of only an IP address.
+
+---
+
+## 👤 End-User Identification
+
+One API key may represent thousands of users.
+
+The resolver therefore performs **per-user identification** inside every authenticated tenant.
+
+### Identification Priority
+
+```
+1. Secure Cookie
+        ↓
+2. JWT Subject/User ID
+        ↓
+3. IP + User-Agent Fingerprint
+        ↓
+4. Generated UUID
+```
+
+---
+
+### 1. Cookie Identification
+
+If the browser already owns
+
+```
+X-TrianSec-User-ID
+```
+
+the resolver immediately identifies the user.
+
+Advantages
+
+- Persistent
+- Very fast
+- Stable across sessions
+- Independent of IP changes
+
+---
+
+### 2. JWT Identification
+
+If the client application sends
+
+```
+Authorization: Bearer <token>
+```
+
+the resolver attempts to extract
+
+```
+sub
+```
+
+or another configured user identifier.
+
+Advantages
+
+- Stable
+- Authenticated
+- Cross-device support
+- Ideal for SaaS platforms
+
+---
+
+### 3. Behavioral Fingerprint
+
+If no persistent identifier exists,
+
+the resolver creates
+
+```
+SHA256(IP + User-Agent)
+```
+
+This provides temporary user tracking until a stronger identity becomes available.
+
+---
+
+### 4. UUID Generation
+
+If none of the above identifiers exist,
+
+the resolver generates
+
+```
+UUIDv4
+```
+
+stores it as
+
+```
+X-TrianSec-User-ID
+```
+
+and upgrades future requests into persistent identities.
+
+This allows anonymous visitors to become consistently identifiable without requiring login.
+
+---
+
+## 🔄 Identity Resolution Flow
 
 ```text
-End-User Device
-      ↓
-Client Application Integration
-      ↓
-  API Gateway (X-API-KEY)
-      ↓
-Identity Resolver (This Component: Maps Tenant + Fingerprints End-User)
-      ↓
-Tenant-Aware Rate Limiting & Threat Processing
+Incoming Request
+        │
+        ▼
+Extract Client IP
+        │
+        ▼
+API Key Present?
+   │            │
+  Yes           No
+   │            │
+Validate API Key │
+   │            │
+Authenticated?   │
+   │            │
+   ▼            ▼
+Resolve User   Anonymous Identity
+Identifier
+   │
+   ▼
+Cookie?
+   │
+ JWT?
+   │
+ Fingerprint?
+   │
+ Generate UUID
+   │
+   ▼
+Composite Identity
+(api:key:user:id)
+   │
+   ▼
+Behavioral Fingerprint
+   │
+   ▼
+Risk Engine
 ```
 
 ---
@@ -58,86 +219,152 @@ In a B2B platform model, a single client API key multiplexes traffic from thousa
 
 ---
 
-## 🔧 Implementation Details
+## 🍪 Persistent User Tracking
 
-### Edge IP Extraction (End-User vs Proxy Chain)
-```python
-TRUST_PROXY = True  # Configurable
+For first-time users, the resolver automatically generates a secure UUID and stores it inside
 
-def extract_client_ips(request: Request) -> tuple[str, str]:
-    # Direct network caller is typically the Client Application Server
-    client_app_server_ip = request.client.host 
-    
-    if TRUST_PROXY:
-        forwarded_ips = request.headers.get("X-Forwarded-For")
-        if forwarded_ips:
-            # First entry in the chain represents the original End-User device
-            end_user_ip = forwarded_ips.split(",")[0].strip()
-            return end_user_ip, client_app_server_ip
-            
-    return client_app_server_ip, client_app_server_ip
+```
+X-TrianSec-User-ID
 ```
 
+Cookie settings
+
+| Setting | Value |
+|----------|-------|
+| HttpOnly | ✅ |
+| Secure | ✅ |
+| SameSite | Lax |
+| Path | / |
+| Lifetime | 1 year |
+
+Benefits
+
+- Stable identities
+- Better reputation tracking
+- Lower false positives
+- Better abuse correlation
+- Survives IP changes
+
+---
+
+## 🧠 Behavioral Fingerprint
+
+Behavioral fingerprints are separate from user identities.
+
+The fingerprint captures request characteristics instead of user ownership.
+
+Authenticated fingerprint:
+
+```
+SHA256(
+API_KEY +
+User-Agent +
+Accept-Language +
+Accept-Encoding +
+Path
+)
+```
+
+Anonymous fingerprint:
+
+```
+SHA256(
+User-Agent +
+Accept-Language +
+Accept-Encoding +
+Path
+)
+```
+
+Behavioral fingerprints are used for
+
+- behavioral clustering
+- anomaly detection
+- trust scoring
+- adaptive rate limiting
+
+rather than permanent identification.
+
+---
+
+## 🆔 Composite Identity
+
+Every authenticated request receives a globally unique identity.
+
+Format
+
+```
+api:<api_key_id>:user:<user_identifier>
+```
+
+Examples
+
+```
+api:12:user:76b5...
+api:12:user:john@example.com
+api:12:user:f14ac...
+```
+
+This prevents collisions between tenants.
+
+The same downstream user existing under two different API customers becomes two independent identities.
+
+```
+Tenant A
+api:15:user:alice
+
+Tenant B
+api:42:user:alice
+```
+
+These identities remain completely isolated.
+
+---
 ### Tenant Authentication Flow
 1. Intercept the incoming payload and inspect the `X-API-KEY` header.
 2. Query the storage backend or cache for the tenant matching the key.
 3. Validate if the client account status is currently marked active.
 4. Extract the downstream end-user network parameters and apply an isolated session tracking index.
 
-### Tenant-Scoped End-User Fingerprint Generation
-```python
-def _generate_tenant_user_fingerprint(request: Request, tenant_id: int, end_user_ip: str) -> str:
-    ua = request.headers.get("user-agent", "")
-    accept_lang = request.headers.get("accept-language", "")
-    accept_enc = request.headers.get("accept-encoding", "")
-    
-    # Fingerprint is explicitly prefixed with the Tenant ID.
-    # This intentionally prevents tracking users across separate client systems.
-    raw_payload = f"tenant:{tenant_id}:ip:{end_user_ip}:ua:{ua}:lang:{accept_lang}:enc:{accept_enc}"
-    return hashlib.sha256(raw_payload.encode()).hexdigest()
+```text
+Tenant
+   │
+   ├── API Key
+   │      │
+   │      ├── User Identity
+   │      │       │
+   │      │       ├── Cookie
+   │      │       ├── JWT
+   │      │       ├── Fingerprint
+   │      │       └── UUID
+   │      │
+   │      └── Behavioral Fingerprint
+   │
+   └── Composite Identity
 ```
 
 ---
 
-## 📊 Logging
+## 🔐 Security Improvements
 
-The resolver tracks tenant validation metrics and downstream anomalies:
-* **INFO**: Tenant authentication success, dynamic end-user fingerprint generation maps.
-* **WARNING**: Inactive/Suspended client key attempts, high end-user-to-IP concentration clusters.
-* **DEBUG**: Complete header chain parse details, execution latency intervals.
+Compared with the previous implementation, the resolver now provides:
 
-```text
-[IDENTITY] Resolving for route=/v1/sync tenant_header=present
-[IDENTITY] Client App Gateway connected from ip=54.210.43.12
-[IDENTITY] X-Forwarded-For end-user trace detected → user_ip=192.168.1.100
-[IDENTITY] Authenticated Tenant ID=1048 [Active] User Fingerprint=e3b0c442...
-```
+- API key cache support
+- Persistent user identities
+- Cookie-based tracking
+- JWT integration
+- Composite identities
+- Tenant isolation
+- Better behavioral fingerprints
+- Reduced false positives
+- Stable anonymous user tracking
+- Middleware-based cookie management
 
 ---
 
 ## ❌ What's Missing (Current Gaps)
 
-### 1. API Key Caching
-* **Problem**: Every single downstream end-user request triggers a database query to validate the host client's API key.
-* **Impact**: Extreme database connection overhead and latency spikes under real-world multi-tenant traffic.
-* **Solution**: Cache verified client tenant metadata records inside a fast Redis layer with an explicit TTL.
-```python
-cached_tenant = await redis.get(f"tenant_key:{api_key}")
-if cached_tenant:
-    return ClientTenantIdentity(**json.loads(cached_tenant))
-```
-
-### 2. Rate Limiting on Invalid API Keys
-* **Problem**: Zero systemic verification limits for missing, bad, or random key lookups.
-* **Impact**: Attackers can run distributed brute-force token scanners directly against the primary gateway cache/database.
-* **Solution**: Track consecutive auth failures based on the direct incoming client server IP address via Redis sliding blocks.
-```python
-failed_attempts = await redis.incr(f"failed_auth:{connecting_ip}")
-if failed_attempts > 20:
-    return HTTP_429_TOO_MANY_REQUESTS
-```
-
-### 3. Missing Multi-Proxy Header Support
+### 1. Missing Multi-Proxy Header Support
 * **Problem**: The resolver assumes all upstream environments forward traffic through standard `X-Forwarded-For` protocols.
 * **Impact**: Breaks downstream end-user IP tracking when client applications rely on specialized cloud layers or CDNs.
 * **Solution**: Support multi-header identification priority schemas to extract true network sources reliably.
@@ -148,41 +375,30 @@ for header in proxy_headers:
         end_user_ip = request.headers[header].split(",")[0].strip()
         break
 ```
-
-### 4. No Live API Key Revocation Checking
-* **Problem**: Revoking compromised client credentials manually has an propagation lag across active memory caches.
-* **Impact**: Compromised tokens or banned tenants continue processing traffic until historical caches cycle naturally.
-* **Solution**: Implement transactional database webhooks to clear precise key indices in Redis instantly upon deletion.
-
-### 5. Missing Contextual Request ID Tracking
+### 2. Missing Contextual Request ID Tracking
 * **Problem**: Distributed system layers process client packages without a unified processing identifier.
 * **Impact**: Impossible to map step-by-step transaction logs when debugging system crashes or tenant disputes.
 * **Solution**: Automatically generate or forward a unique `X-Request-ID` signature downstream.
 
-### 6. Missing Token Expiration Policies
+### 3. Missing Token Expiration Policies
 * **Problem**: Generated B2B client application API keys are infinitely valid by default.
 * **Impact**: If a client commits their backend configuration variables to a public repository, the key remains open forever.
 * **Solution**: Enforce structural expiration timestamps within the database management entity schema.
 
-### 7. Weak Anonymous End-User Fingerprinting
-* **Problem**: End-users browsing under shared networks (e.g., enterprise VPNs, offices, cellular CGNAT) resolve to matching profiles.
-* **Impact**: High risk of false-positives where blocking one abusive user mistakenly locks out an entire office pool on that client's app.
-* **Solution**: Mix explicit system user IDs, device markers, and network context values into the hashing sequence.
-
-### 8. Dynamic End-User IP Migration Tracking
+### 4. Dynamic End-User IP Migration Tracking
 * **Problem**: Legitimate users shifting from Wi-Fi networks to mobile data cells change their IP and break correlation tracking.
 * **Impact**: Low-and-slow abuse signatures distributed across dynamic cell networks look like unlinked user interactions.
 * **Solution**: Provide integration parameters allowing clients to pass a secure local session identifier for deep correlation tracking.
 
-### 9. Lack of IPv6 Address Normalization
+### 5. Lack of IPv6 Address Normalization
 * **Problem**: Different notations of the same raw IPv6 network address read as entirely distinct string values.
 * **Impact**: End-user fingerprint signatures fragment if requests vary between full, uncompressed, or short notation styles.
 * **Solution**: Strip zone tracking values and standardize IPv6 strings before computing hashing pipelines.
 
-### 10. Missing Edge Real-Time Network Blocklists
+### 6. Missing Edge Real-Time Network Blocklists
 * **Problem**: Known threat vectors and scanning clusters process through token identification before being rejected.
 * **Impact**: Unnecessary memory usage and computation cycles are thrown away parsing traffic from known bad subnets.
 * **Solution**: Match the immediate upstream server IP directly against memory blocks before execution.
 
-### 11. Missing Audit Trail Logging
+### 7. Missing Audit Trail Logging
 * **Problem**: Security telemetry reports do not store a permanent, immutable record of authorization state changes.
