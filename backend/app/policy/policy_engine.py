@@ -1,7 +1,7 @@
 # app/policy/policy_engine.py
-
 from __future__ import annotations
 
+import logging
 from .adaptive_thresholds import adaptive_thresholds
 from .constants import (
     BLOCK_DURATIONS,
@@ -11,7 +11,7 @@ from .context import PenaltyContext
 from .decision import PenaltyDecision
 from .types import Action
 
-
+logger = logging.getLogger(__name__)
 class PolicyEngine:
     """
     Pure business decision engine.
@@ -53,6 +53,17 @@ class PolicyEngine:
             adaptive_thresholds.thresholds(
                 context.client_id
             )
+        )
+
+        logger.info(
+            f"[PolicyEngine] identity={context.identity_id}, "
+            f"trust={trust_score:.3f}, "
+            f"suspicion={suspicion_score:.3f}, "
+            f"high_th={high_threshold:.3f}, "
+            f"med_th={medium_threshold:.3f}, "
+            f"violations={context.violation_count}, "
+            f"blocked={context.is_blocked}, "
+            f"throttled={context.is_throttled}"
         )
 
         # -------------------------------------------------
