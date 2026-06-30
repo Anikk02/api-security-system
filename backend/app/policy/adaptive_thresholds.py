@@ -98,8 +98,8 @@ class AdaptiveThresholdEngine:
 
         if len(history) < 30:
             return AdaptiveThresholds(
-                high=0.75,
-                medium=0.50,
+                high=DEFAULT_HIGH_THRESHOLD,
+                medium=DEFAULT_MEDIUM_THRESHOLD,
             )
 
         history = sorted(history)
