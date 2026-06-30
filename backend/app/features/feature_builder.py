@@ -9,6 +9,20 @@ MAX_ENDPOINT_ENTROPY = math.log2(50)
 
 # Minimum baseline req/sec before burst ratio is meaningful
 BURST_BASELINE_THRESHOLD = 0.1
+
+# Sensitive endpoint definitions (matching risk_engine.py)
+_SENSITIVE_EXACT = {
+    "/login", "/auth", "/admin", "/payment", "/reset-password",
+    "/api/data", "/api/secure",
+}
+
+_SENSITIVE_PREFIXES = (
+    "/api/admin",
+    "/api/user",
+    "/api/secure",
+    "/api/data",
+)
+
 class FeatureBuilder:
 
     def __init__(self, state_manager):
@@ -126,18 +140,32 @@ class FeatureBuilder:
 
         counter = Counter(endpoints)
         total = len(endpoints)
-
-        if total > 0:
+        
+        # Require a minimum sample before trusting top_endpoint_ratio.
+        # With < 10 requests any user trivially scores 1.0 (they hit one
+        # endpoint once), making normal users look like endpoint-hammers.
+        if total >= 10:
             top_count = max(counter.values())
             top_endpoint_ratio = round(top_count / total, 4)
         else:
             top_endpoint_ratio = 0.0
 
+        # NEW: Count sensitive endpoint hits
+        sensitive_hits = 0
+        for endpoint in endpoints:
+            if endpoint in _SENSITIVE_EXACT:
+                sensitive_hits += 1
+            else:
+                for prefix in _SENSITIVE_PREFIXES:
+                    if endpoint == prefix or endpoint.startswith(prefix + "/") or endpoint.startswith(prefix + "?"):
+                        sensitive_hits += 1
+                        break
+
         # ERROR ANALYSIS
         error_count = error_count_raw or 0
         total_requests = max(req_per_min, 1)
 
-        error_rate = round(error_count / total_requests, 4) # (error_count + 1) / (total_requests + 5) -> round(error_count / total_requests, 4)
+        error_rate = round(error_count / total_requests, 4)
 
         # BURST DETECTION
         avg_per_sec = req_per_min / 60 if req_per_min > 0 else 0
@@ -214,8 +242,10 @@ class FeatureBuilder:
             # endpoint behavior
             'unique_endpoints': unique_endpoints,
             'endpoint_entropy': round(endpoint_entropy, 4),
-
             'top_endpoint_ratio': top_endpoint_ratio,
+
+            # NEW: sensitive hits count
+            'sensitive_hits': sensitive_hits,
 
             # errors
             'error_rate': round(error_rate, 4),
