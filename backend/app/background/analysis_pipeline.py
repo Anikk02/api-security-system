@@ -35,46 +35,39 @@ async def run_analysis_pipeline(
     request_uuid: str,
     label: str | None,
     fast_risk_score: float,
+    fast_action: str | None = None,  # Action from fast path (what actually happened)
 ):
     try:
-
+        logger.info(
+            f"[pipeline] CALLED: identity={identity.identity_id}, "
+            f"status_code={status_code}, "
+            f"fast_risk_score={fast_risk_score}, "
+            f"fast_action={fast_action}, "
+            f"request_uuid={request_uuid}"
+        )
+        
         # -------------------------------------------------------
         # Track Errors
         # -------------------------------------------------------
-
         if status_code is not None and status_code >= 400:
             await StateManager.increment_error(identity)
-
-        await StateManager.record_outcome(
-            identity=identity,
-            endpoint=signals.endpoint,
-            status_code=status_code or 200,
-        )
 
         # -------------------------------------------------------
         # Build Features
         # -------------------------------------------------------
-
         try:
             features = await _get_feature_builder().build(
                 identity,
                 signals,
             )
-
         except Exception as e:
-
-            logger.exception(
-                f"[pipeline] FeatureBuilder failed : {e}"
-            )
-
+            logger.exception(f"[pipeline] FeatureBuilder failed: {e}")
             features = _empty_features()
 
         # -------------------------------------------------------
-        # Compute Risk
+        # Compute Risk (for current request)
         # -------------------------------------------------------
-
         try:
-
             (
                 risk_score,
                 risk_label,
@@ -87,15 +80,9 @@ async def run_analysis_pipeline(
                 "explanation": explanation,
                 "contributions": contributions,
             }
-
         except Exception as e:
-
-            logger.exception(
-                f"[pipeline] RiskEngine failed : {e}"
-            )
-
+            logger.exception(f"[pipeline] RiskEngine failed: {e}")
             risk_score = fast_risk_score
-
             risk_data = {
                 "label": "low",
                 "explanation": "fallback",
@@ -103,24 +90,22 @@ async def run_analysis_pipeline(
             }
 
         # -------------------------------------------------------
-        # Penalty Manager
+        # 🔥 ALWAYS run penalty manager with CURRENT risk score
+        # This updates Redis for future requests
         # -------------------------------------------------------
-
         try:
-
-            decision: PenaltyDecision = await apply_penalty(
+            penalty_decision: PenaltyDecision = await apply_penalty(
                 identity=identity,
                 signals=signals,
-                risk_score=risk_score,
+                risk_score=risk_score,  # CURRENT computed risk
             )
-
+            logger.debug(
+                f"[pipeline] PenaltyManager: action={penalty_decision.action}, "
+                f"risk={penalty_decision.risk_score:.3f}"
+            )
         except Exception as e:
-
-            logger.exception(
-                f"[pipeline] PenaltyManager failed : {e}"
-            )
-
-            decision = PenaltyDecision(
+            logger.exception(f"[pipeline] PenaltyManager failed: {e}")
+            penalty_decision = PenaltyDecision(
                 action="allow",
                 reason="Penalty fallback",
                 risk_score=risk_score,
@@ -129,48 +114,61 @@ async def run_analysis_pipeline(
             )
 
         # -------------------------------------------------------
-        # Explainability
+        # 🔥 LOG what actually happened (fast path decision)
         # -------------------------------------------------------
+        # The fast path decision is what happened to THIS request
+        # Use it for logging, separate from penalty_decision
+        log_action = fast_action if fast_action in ["block", "throttle"] else penalty_decision.action
+        log_reason = f"Fast path: {fast_action}" if fast_action in ["block", "throttle"] else penalty_decision.reason
+        log_risk_score = fast_risk_score if fast_action in ["block", "throttle"] else penalty_decision.risk_score
 
-        explanation_json = Explainer.generate(
-            action=decision.action,
-            reason=decision.reason,
-            risk_score=risk_score,
-            features=features,
-            risk_data=risk_data,      # rename later if desired
+        logger.info(
+            f"[pipeline] Logging: action={log_action}, "
+            f"(penalty_manager said: {penalty_decision.action})"
         )
 
         # -------------------------------------------------------
-        # DB Logging
+        # Explainability - Use log data for explanation
         # -------------------------------------------------------
+        explanation_json = Explainer.generate(
+            action=log_action,
+            reason=log_reason,
+            risk_score=log_risk_score,
+            features=features,
+            risk_data=risk_data,
+        )
 
+        # -------------------------------------------------------
+        # DB Logging - Log what actually happened (fast path decision)
+        # -------------------------------------------------------
         await _log_to_db(
             identity=identity,
             signals=signals,
             features=features,
-            decision=decision,
-            risk_score=risk_score,
+            action=log_action,           # Fast path decision
+            reason=log_reason,
+            risk_score=log_risk_score,
             risk_data=risk_data,
             explanation=explanation_json,
             request_uuid=request_uuid,
             status_code=status_code or 200,
             label=label,
+            penalty_action=penalty_decision.action,  # For debugging
+            penalty_risk=penalty_decision.risk_score,
         )
 
         logger.debug(
-            "[pipeline] "
-            f"identity={identity.identity_id} | "
-            f"risk={risk_score:.3f} | "
-            f"trust={decision.trust_score:.3f} | "
-            f"rep={decision.reputation:.3f} | "
-            f"action={decision.action}"
+            f"[pipeline] COMPLETED: identity={identity.identity_id} | "
+            f"LOG_ACTION={log_action} | "
+            f"PENALTY_ACTION={penalty_decision.action} | "
+            f"computed_risk={risk_score:.3f}"
         )
 
-    except Exception:
-
+    except Exception as e:
         logger.exception(
             f"[pipeline] Unhandled exception "
-            f"identity={identity.identity_id}"
+            f"identity={identity.identity_id}, "
+            f"error={e}"
         )
 
 
@@ -179,18 +177,22 @@ async def _log_to_db(
     identity,
     signals,
     features,
-    decision: PenaltyDecision,
-    risk_score,
+    action: str,           # Fast path decision (what actually happened)
+    reason: str,
+    risk_score: float,
     risk_data,
     explanation,
     request_uuid,
     status_code,
     label,
+    penalty_action: str = None,  # For debugging
+    penalty_risk: float = None,
 ):
     try:
         async with AsyncSessionLocal() as db:
             api_key_id = getattr(identity, "api_key_id", None)
 
+            # Create RequestLog with fast path decision
             request_log = RequestLog(
                 identity_id=identity.identity_id,
                 client_id=identity.client_id,
@@ -200,24 +202,23 @@ async def _log_to_db(
                 ip_address=signals.ip_address,
                 user_agent=signals.user_agent,
                 status_code=status_code,
-                action=decision.action,
+                action=action,  # Fast path decision
                 request_uuid=request_uuid,
             )
-
             db.add(request_log)
-
             await db.flush()
 
             request_id = request_log.id
 
+            # Create DecisionLog with fast path decision
             db.add(
                 DecisionLog(
                     identity_id=identity.identity_id,
                     client_id=identity.client_id,
                     api_key_id=api_key_id,
                     request_id=request_id,
-                    action=decision.action,
-                    reason=decision.reason,
+                    action=action,  # Fast path decision
+                    reason=reason,
                     risk_score=risk_score,
                     explanation=explanation.get("summary"),
                     explanation_json=explanation,
@@ -226,6 +227,7 @@ async def _log_to_db(
                 )
             )
 
+            # Create FeatureLog
             db.add(
                 FeatureLog(
                     identity_id=identity.identity_id,
@@ -249,8 +251,8 @@ async def _log_to_db(
                 )
             )
 
+            # Create MLPrediction if available
             if risk_data.get("label"):
-
                 db.add(
                     MLPrediction(
                         identity_id=identity.identity_id,
@@ -260,49 +262,35 @@ async def _log_to_db(
                         risk_score=risk_score,
                         risk_label=risk_data.get("label"),
                         explanation=explanation.get("summary"),
-                        feature_contributions=explanation.get(
-                            "feature_contributions"
-                        ),
+                        feature_contributions=explanation.get("feature_contributions"),
                         request_uuid=request_uuid,
                     )
                 )
 
             await db.commit()
+            logger.debug(f"[_log_to_db] Success for request_uuid={request_uuid}")
 
     except Exception as e:
-
-        logger.exception(
-            f"[pipeline] DB logging failed : {e}"
-        )
+        logger.exception(f"[_log_to_db] DB logging failed: {e}")
+        raise
 
 
 def _empty_features() -> dict:
     return {
-        # Request metrics
         "req_per_sec": 0.0,
         "req_per_min": 0.0,
         "burst_score": 0.0,
-
-        # Endpoint behaviour
         "unique_endpoints": 0,
         "endpoint_entropy": 0.0,
         "top_endpoint_ratio": 0.0,
-
-        # Error / rate limiting
         "error_rate": 0.0,
         "is_rate_limited": False,
-
-        # Identity
         "ip_changes": 0,
         "is_bot": False,
         "is_browser": False,
         "is_suspicious_ua": False,
-
-        # Timing
         "request_regularity": 0.0,
         "time_variance": 0.0,
         "time_mean": 0.0,
-
-        # Optional values used by FeatureLog
         "ip_address": "unknown",
     }
