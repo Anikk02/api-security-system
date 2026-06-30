@@ -19,7 +19,7 @@ ATTACK_USERS_COUNT = 15
 BAD_REPUTATION_USERS_COUNT = 10  # 🔥 NEW: Users with very bad reputation
 
 # API Key for authentication
-API_KEY = "ts_live_6d8e887bebaa862804cf251a232d1d5c9b3322b66a5d2885"
+API_KEY = ""
 
 # ============ ENHANCED IP POOL (100+ realistic IPs) ============
 IP_POOL = [
