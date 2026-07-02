@@ -1,0 +1,17 @@
+/* frontend/src/styles/particles.css */
+.floating-particles {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.particle {
+  position: absolute;
+  background: rgba(0, 255, 136, 0.4);
+  border-radius: 50%;
+  box-shadow: 0 0 6px rgba(0, 255, 136, 0.2);
+}

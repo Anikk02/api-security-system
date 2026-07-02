@@ -1,0 +1,102 @@
+/* frontend/src/styles/gauges.css */
+.gauge-wrapper {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
+.gauge-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.gauge-title {
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.gauge-label {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.gauge-bar {
+  position: relative;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+  overflow: visible;
+  margin: 4px 0;
+}
+
+.gauge-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 1s ease;
+  position: relative;
+}
+
+.gauge-fill::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: -2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: inherit;
+  filter: blur(2px);
+  opacity: 0.6;
+}
+
+.gauge-needle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  background: #fff;
+  border-radius: 50%;
+  transform: translate(-50%, -50%) rotate(-90deg);
+  box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
+  border: 2px solid #0a0e1a;
+}
+
+.gauge-value {
+  text-align: center;
+  margin-top: 2px;
+}
+
+.gauge-value span {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.gauge-steps {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2px;
+}
+
+.gauge-steps span {
+  color: rgba(255, 255, 255, 0.1);
+  font-size: 7px;
+}
+
+.risk-fill {
+  background: linear-gradient(90deg, #2ecc71, #f1c40f, #e74c3c);
+}
+
+.trust-fill {
+  background: linear-gradient(90deg, #e74c3c, #f1c40f, #2ecc71);
+}

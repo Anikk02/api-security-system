@@ -1,0 +1,664 @@
+/* frontend/src/styles/auth.css */
+.auth-page-wrapper {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.auth-content-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.auth-content-overlay > * {
+  pointer-events: auto;
+}
+
+.auth-page {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  width: 100%;
+  padding: var(--spacing-md);
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 440px;
+  background: rgba(10, 14, 26, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  padding: 40px 36px;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.6), 0 0 60px rgba(0, 255, 136, 0.03);
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.auth-card:hover {
+  border-color: rgba(0, 255, 136, 0.15);
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.6), 0 0 80px rgba(0, 255, 136, 0.05);
+}
+
+.auth-card::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle at 30% 30%, rgba(0, 255, 136, 0.03), transparent 60%);
+  pointer-events: none;
+  animation: rotateGlow 20s linear infinite;
+}
+
+@keyframes rotateGlow {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.auth-card__header {
+  text-align: center;
+  margin-bottom: 32px;
+  position: relative;
+  z-index: 1;
+}
+
+.auth-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.auth-logo__icon {
+  color: #00ff88;
+  filter: drop-shadow(0 0 20px rgba(0, 255, 136, 0.3));
+}
+
+.auth-logo__text {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.025em;
+  background: linear-gradient(135deg, #00ff88, #00cc77);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.auth-card__title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 8px;
+}
+
+.auth-card__subtitle {
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.5);
+  line-height: 1.5;
+}
+
+.success-icon {
+  color: #00ff88;
+  margin-bottom: 16px;
+  filter: drop-shadow(0 0 20px rgba(0, 255, 136, 0.3));
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  position: relative;
+  z-index: 1;
+}
+
+.auth-form__group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.auth-form__label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.auth-form__label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.auth-form__forgot-link {
+  font-size: 0.8125rem;
+  color: #00ff88;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.auth-form__forgot-link:hover {
+  color: #33ff99;
+}
+
+.auth-form__input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.auth-form__icon {
+  position: absolute;
+  left: 14px;
+  color: rgba(255, 255, 255, 0.2);
+  pointer-events: none;
+  transition: color 0.2s ease;
+}
+
+.auth-form__input {
+  width: 100%;
+  padding: 14px 16px 14px 42px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  color: #ffffff;
+  font-size: 0.9375rem;
+  outline: none;
+  transition: all 0.3s ease;
+}
+
+.auth-form__input:focus {
+  border-color: #00ff88;
+  box-shadow: 0 0 0 1px #00ff88, 0 0 20px rgba(0, 255, 136, 0.05);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.auth-form__input:focus + .auth-form__icon {
+  color: #00ff88;
+}
+
+.auth-form__input::placeholder {
+  color: rgba(255, 255, 255, 0.2);
+}
+
+.auth-form__input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.auth-form__hint {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.3);
+  margin-top: 4px;
+}
+
+.password-rules {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px 12px;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.password-rules__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.3);
+  transition: color 0.3s ease;
+}
+
+.password-rules__item svg {
+  flex-shrink: 0;
+}
+
+.password-rules__item.valid {
+  color: #2ecc71;
+}
+
+.password-rules__item.invalid {
+  color: #e74c3c;
+}
+
+.auth-btn {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  padding: 14px;
+  background: linear-gradient(135deg, #00ff88, #00cc77);
+  border: none;
+  border-radius: 12px;
+  color: #0a0e1a;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.auth-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0, 255, 136, 0.3);
+}
+
+.auth-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.auth-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.auth-btn__spinner {
+  animation: spin 1s linear infinite;
+}
+
+.auth-btn__arrow {
+  transition: transform 0.3s ease;
+}
+
+.auth-btn:hover:not(:disabled) .auth-btn__arrow {
+  transform: translateX(4px);
+}
+
+.auth-btn--secondary {
+  background: rgba(255, 255, 255, 0.05);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.auth-btn--secondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+}
+
+.auth-card__footer {
+  margin-top: 28px;
+  text-align: center;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  padding-top: 24px;
+  position: relative;
+  z-index: 1;
+}
+
+.auth-footer__text {
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.4);
+  margin: 0;
+}
+
+.auth-footer__link {
+  color: #00ff88;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.auth-footer__link:hover {
+  color: #33ff99;
+  text-decoration: underline;
+}
+
+.auth-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .auth-card {
+    padding: 32px 24px;
+    max-width: 400px;
+  }
+  
+  .auth-logo__text {
+    font-size: 1.5rem;
+  }
+  
+  .auth-card__title {
+    font-size: 1.25rem;
+  }
+  
+  .password-rules {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .auth-card {
+    padding: 24px 16px;
+    max-width: 100%;
+    margin: 16px;
+  }
+  
+  .auth-form__input {
+    font-size: 0.875rem;
+    padding: 12px 14px 12px 38px;
+  }
+  
+  .auth-btn {
+    font-size: 0.875rem;
+    padding: 12px;
+  }
+}
+
+/* frontend/src/styles/auth.css - Add these additional styles */
+
+/* Auth Card Variants */
+.auth-card--change-email {
+  max-width: 420px;
+}
+
+/* Loading State */
+.auth-loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 30px 0;
+  gap: 16px;
+}
+
+.auth-loading-state .auth-btn__spinner {
+  color: #00ff88;
+}
+
+.auth-message {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.875rem;
+  text-align: center;
+  margin: 0;
+}
+
+/* Success Icon Animation */
+.success-icon {
+  animation: successPulse 0.6s ease-out;
+}
+
+@keyframes successPulse {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Auth Form Hint */
+.auth-form__hint {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.25);
+  margin-top: 4px;
+  padding-left: 4px;
+}
+
+/* Auth Actions Container */
+.auth-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+/* Button Variants */
+.auth-btn--secondary {
+  background: rgba(255, 255, 255, 0.05);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.auth-btn--secondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+  transform: translateY(-2px);
+}
+
+/* Auth Card Hover States */
+.auth-card:hover .auth-logo__icon {
+  filter: drop-shadow(0 0 30px rgba(0, 255, 136, 0.5));
+}
+
+/* Responsive Adjustments for ChangeEmail */
+@media (max-width: 480px) {
+  .auth-card--change-email {
+    max-width: 100%;
+    margin: 12px;
+  }
+  
+  .auth-loading-state .auth-btn__spinner {
+    width: 24px;
+    height: 24px;
+  }
+}
+
+/* Dark Scrollbar for Auth Pages */
+.auth-page ::-webkit-scrollbar {
+  width: 4px;
+}
+
+.auth-page ::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.auth-page ::-webkit-scrollbar-thumb {
+  background: rgba(0, 255, 136, 0.2);
+  border-radius: 2px;
+}
+
+.auth-page ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 255, 136, 0.3);
+}
+
+/* frontend/src/styles/auth.css - Add these styles at the end */
+
+/* ============================
+   CHANGE EMAIL SPECIFIC STYLES
+   ============================ */
+
+.auth-card--change-email {
+  max-width: 420px;
+}
+
+/* Auth Status Text */
+.auth-status-text {
+  display: inline-block;
+  font-weight: 500;
+}
+
+.auth-status-text.success-text {
+  color: #2ecc71;
+}
+
+.auth-status-text.error-text {
+  color: #e74c3c;
+}
+
+/* Loading State */
+.auth-loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 30px 0;
+  gap: 16px;
+}
+
+.auth-loading-state .auth-btn__spinner {
+  color: #00ff88;
+}
+
+/* Error State */
+.auth-error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 0;
+  gap: 12px;
+}
+
+.auth-error-icon {
+  font-size: 48px;
+  margin-bottom: 8px;
+}
+
+.auth-message {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.875rem;
+  text-align: center;
+  margin: 0;
+}
+
+.auth-message.error-text {
+  color: #e74c3c;
+}
+
+/* Auth Form Error */
+.auth-form__error {
+  display: block;
+  color: #e74c3c;
+  font-size: 0.75rem;
+  margin-top: 4px;
+  padding-left: 4px;
+}
+
+/* Success Icon Animation */
+.success-icon {
+  animation: successPulse 0.6s ease-out;
+}
+
+@keyframes successPulse {
+  0% {
+    transform: scale(0) rotate(-10deg);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.2) rotate(5deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+/* Auth Form Hint */
+.auth-form__hint {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.25);
+  margin-top: 4px;
+  padding-left: 4px;
+}
+
+/* Auth Actions Container */
+.auth-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+/* Button Variants */
+.auth-btn--secondary {
+  background: rgba(255, 255, 255, 0.05);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.auth-btn--secondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+  transform: translateY(-2px);
+}
+
+/* Auth Card Hover States */
+.auth-card:hover .auth-logo__icon {
+  filter: drop-shadow(0 0 30px rgba(0, 255, 136, 0.5));
+}
+
+/* Responsive Adjustments */
+@media (max-width: 480px) {
+  .auth-card--change-email {
+    max-width: 100%;
+    margin: 12px;
+  }
+  
+  .auth-loading-state .auth-btn__spinner {
+    width: 24px;
+    height: 24px;
+  }
+  
+  .auth-error-icon {
+    font-size: 36px;
+  }
+}
+
+/* Dark Scrollbar for Auth Pages */
+.auth-page ::-webkit-scrollbar {
+  width: 4px;
+}
+
+.auth-page ::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.auth-page ::-webkit-scrollbar-thumb {
+  background: rgba(0, 255, 136, 0.2);
+  border-radius: 2px;
+}
+
+.auth-page ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 255, 136, 0.3);
+}
+
+/* Toast Override for Dark Theme */
+.go-toast {
+  background: rgba(10, 14, 26, 0.95) !important;
+  backdrop-filter: blur(10px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  color: #ffffff !important;
+}
+
+/* Form Input Autofill Styles */
+.auth-form__input:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 30px rgba(10, 14, 26, 0.9) inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.auth-form__input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 30px rgba(10, 14, 26, 0.9) inset, 0 0 0 1px #00ff88 !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
