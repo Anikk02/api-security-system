@@ -1,3 +1,4 @@
+// frontend/src/components/client/Sidebar/Sidebar.jsx
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { 
@@ -26,6 +27,7 @@ const Sidebar = ({ isOpen, onClose }) => {
 
   return (
     <>
+      {/* Overlay - only on mobile */}
       <div 
         className={`sidebar-overlay ${isOpen ? 'sidebar-overlay--open' : ''}`} 
         onClick={onClose} 
@@ -41,6 +43,7 @@ const Sidebar = ({ isOpen, onClose }) => {
             </div>
           </div>
 
+          {/* Close button - ALWAYS VISIBLE on both desktop and mobile */}
           <button className="sidebar__close" onClick={onClose}>
             <X size={24} />
           </button>
@@ -51,11 +54,16 @@ const Sidebar = ({ isOpen, onClose }) => {
             <NavLink
               key={item.path}
               to={item.path}
-              end={item.path === '/'}   // ✅ FIXED
+              end={item.path === '/'}
               className={({ isActive }) => 
                 `sidebar__nav-item ${isActive ? 'sidebar__nav-item--active' : ''}`
               }
-              onClick={onClose}
+              onClick={() => {
+                // Only close on mobile
+                if (window.innerWidth <= 768) {
+                  onClose();
+                }
+              }}
             >
               <item.icon size={20} />
               <span>{item.label}</span>
