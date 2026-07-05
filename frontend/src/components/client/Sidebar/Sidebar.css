@@ -1,3 +1,4 @@
+/* frontend/src/components/client/Sidebar/Sidebar.css */
 .sidebar {
   position: fixed;
   top: 0;
@@ -38,6 +39,9 @@
 .sidebar__header {
   padding: var(--spacing-xl);
   border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .sidebar__logo {
@@ -60,12 +64,25 @@
   color: var(--text-secondary);
 }
 
+/* Toggle button - ALWAYS VISIBLE */
 .sidebar__close {
-  display: none;
-  position: absolute;
-  top: var(--spacing-lg);
-  right: var(--spacing-lg);
+  display: flex !important; /* Force show */
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
   color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  transition: var(--transition-fast);
+  width: 32px;
+  height: 32px;
+}
+
+.sidebar__close:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .sidebar__nav {
@@ -112,7 +129,8 @@
     display: none;
   }
   
+  /* Keep the close button visible on desktop too */
   .sidebar__close {
-    display: none;
+    display: flex !important;
   }
 }

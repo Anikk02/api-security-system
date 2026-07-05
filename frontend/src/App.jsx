@@ -1,3 +1,4 @@
+// frontend/src/App.jsx
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
@@ -13,13 +14,15 @@ import ActivityPage from './pages/client/activity/ActivityPage';
 import UsagePage from './pages/client/Usage/UsagePage';
 import APIKeys from './pages/client/APIKeys/APIKeys';
 
-// 🔐 Auth Pages
+// 🔐 Auth Pages with Background
 import Login from './pages/Auth/Login';
 import Register from './pages/Auth/Register';
 import ForgotPassword from './pages/Auth/ForgotPassword';
 import ResetPassword from './pages/Auth/ResetPassword';
 import ChangeEmail from './pages/Auth/ChangeEmail';
 
+// Import background styles
+import './styles/background.css';
 import './App.css';
 
 const SessionLoading = () => (
@@ -31,12 +34,12 @@ const SessionLoading = () => (
       flexDirection: 'column',
       justifyContent: 'center',
       alignItems: 'center',
-      backgroundColor: '#0a0a0a',
+      backgroundColor: '#0a0e1a',
       color: '#ffffff'
     }}
   >
     <div className="dashboard-loading__spinner"></div>
-    <p style={{ marginTop: '16px', fontFamily: 'inherit' }}>
+    <p style={{ marginTop: '16px', fontFamily: 'inherit', color: 'rgba(255,255,255,0.6)' }}>
       Loading account session...
     </p>
   </div>
@@ -70,41 +73,40 @@ const App = () => {
           toastOptions={{
             duration: 3000,
             style: {
-              background: '#1e1e1e',
+              background: 'rgba(10, 14, 26, 0.9)',
               color: '#ffffff',
-              border: '1px solid #2a2a2a',
+              border: '1px solid rgba(255, 255, 255, 0.05)',
+              backdropFilter: 'blur(10px)',
+              borderRadius: '8px',
             },
             success: {
               iconTheme: {
-                primary: '#10b981',
-                secondary: '#ffffff',
+                primary: '#00ff88',
+                secondary: '#0a0e1a',
               },
             },
             error: {
               iconTheme: {
                 primary: '#ef4444',
-                secondary: '#ffffff',
+                secondary: '#0a0e1a',
               },
             },
           }}
         />
 
         <Routes>
-
-          {/* 🌐 PUBLIC ROUTES */}
+          {/* 🌐 PUBLIC ROUTES - With TriAnSec Background */}
           <Route element={<PublicRoute />}>
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
-            {/* ✅ NEW */}
-            <Route path="change-email" element={<ChangeEmail />} />
+            <Route path="/change-email" element={<ChangeEmail />} />
           </Route>
 
-          {/* 🔒 PROTECTED ROUTES */}
+          {/* 🔒 PROTECTED ROUTES - MainLayout with sidebar, no background */}
           <Route element={<ProtectedRoute />}>
             <Route path="/" element={<MainLayout />}>
-
               <Route index element={<Dashboard />} />
               <Route path="logs" element={<Logs />} />
               <Route path="users" element={<Users />} />
@@ -112,13 +114,11 @@ const App = () => {
               <Route path="api-keys" element={<APIKeys />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="usage" element={<UsagePage />} />
-
             </Route>
           </Route>
 
           {/* 🔁 FALLBACK */}
           <Route path="*" element={<Navigate to="/" replace />} />
-
         </Routes>
       </AuthProvider>
     </Router>

@@ -1,3 +1,4 @@
+/* frontend/src/components/client/Navbar/Navbar.css */
 .navbar {
   position: fixed;
   top: 0;
@@ -11,6 +12,20 @@
   align-items: center;
   padding: 0 var(--spacing-xl);
   z-index: 100;
+  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ADD THIS - Navbar adjustment when sidebar is open */
+@media (min-width: 1024px) {
+  .navbar--sidebar-open {
+    margin-left: 280px;
+    width: calc(100% - 280px);
+  }
+  
+  .navbar--sidebar-closed {
+    margin-left: 0;
+    width: 100%;
+  }
 }
 
 .navbar__left {
@@ -107,9 +122,12 @@
   white-space: nowrap;
 }
 
+/* ADD THIS - Reset navbar on mobile */
 @media (max-width: 1024px) {
   .navbar {
     padding: 0 var(--spacing-md);
+    margin-left: 0 !important;
+    width: 100% !important;
   }
   
   .navbar__menu-btn {
@@ -130,5 +148,38 @@
   
   .navbar__user {
     padding: var(--spacing-sm);
+  }
+}
+
+/* frontend/src/components/client/Navbar/Navbar.css - Add this */
+.navbar__menu-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  width: 36px;
+  height: 36px;
+}
+
+.navbar__menu-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* Show menu button on all screen sizes */
+.navbar__menu-btn {
+  display: flex !important;
+}
+
+/* On mobile, adjust spacing */
+@media (max-width: 768px) {
+  .navbar__menu-btn {
+    padding: 4px;
   }
 }

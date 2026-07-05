@@ -1,22 +1,23 @@
+// frontend/src/components/client/Navbar/Navbar.jsx
 import React from 'react';
 import { Menu, Bell, User, Shield, Zap, LogOut } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 import './Navbar.css';
 
-const Navbar = ({ onMenuClick }) => {
+const Navbar = ({ onMenuClick, isSidebarOpen }) => {
   const { user, logout } = useAuth();
   const displayName = user?.company_name || user?.email || 'Account';
 
   return (
-    <nav className="navbar">
+    <nav className={`navbar ${isSidebarOpen ? 'navbar--sidebar-open' : 'navbar--sidebar-closed'}`}>
       <div className="navbar__left">
         <button className="navbar__menu-btn" onClick={onMenuClick}>
           <Menu size={24} />
         </button>
         <div className="navbar__logo">
           <Shield size={24} className="navbar__logo-icon" />
-          <span className="navbar__logo-text">API Security</span>
-          <span className="navbar__badge">AI-Powered</span>
+          <span className="navbar__logo-text">TriAnSec</span>
+          <span className="navbar__badge">Behavior-based Middleware</span>
         </div>
       </div>
       <div className="navbar__right">

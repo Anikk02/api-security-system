@@ -1,32 +1,105 @@
+/* frontend/src/layouts/client/MainLayout.css */
 .main-layout {
-  min-height: 100vh;
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background: #0a0e1a;
+  color: #ffffff;
 }
 
+/* Sidebar - hidden by default on all screen sizes */
+.main-layout .sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 280px;
+  height: 100vh;
+  z-index: 1000;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: translateX(-100%); /* Hidden by default */
+}
+
+/* When sidebar is open */
+.main-layout .sidebar.sidebar--open {
+  transform: translateX(0);
+}
+
+/* When sidebar is closed */
+.main-layout .sidebar:not(.sidebar--open) {
+  transform: translateX(-100%);
+}
+
+/* Main content - full width by default */
 .main-layout__content {
-  margin-left: 0;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
   padding-top: 64px;
-  padding-bottom: 0;
-  transition: margin-left var(--transition-normal);
+  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  height: 100vh;
+  width: 100%;
+  background: #0a0e1a;
+  margin-left: 0; /* Full width by default */
+}
+
+/* When sidebar is open on desktop, content shifts right */
+@media (min-width: 769px) {
+  .main-layout__content.sidebar-open {
+    margin-left: 280px;
+    width: calc(100% - 280px);
+  }
+  
+  .main-layout__content.sidebar-closed {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
+/* Custom scrollbar */
+.main-layout__content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.main-layout__content::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.main-layout__content::-webkit-scrollbar-thumb {
+  background: rgba(0, 255, 136, 0.15);
+  border-radius: 3px;
+}
+
+.main-layout__content::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 255, 136, 0.25);
 }
 
 .main-layout__container {
-  padding: var(--spacing-xl);
+  padding: 24px;
   max-width: 1400px;
   margin: 0 auto;
+  min-height: calc(100% - 48px);
 }
 
-@media (min-width: 1024px) {
+/* Mobile - sidebar slides over content */
+@media (max-width: 768px) {
   .main-layout__content {
-    margin-left: 280px;
+    margin-left: 0 !important;
+    width: 100% !important;
+    height: calc(100vh - 64px - 64px);
+    padding-top: 0;
+    margin-top: 64px;
   }
   
   .main-layout__container {
-    padding: var(--spacing-2xl);
+    padding: 16px;
+    padding-bottom: 80px;
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 480px) {
   .main-layout__container {
-    padding: var(--spacing-lg) var(--spacing-md) calc(64px + var(--spacing-lg));
+    padding: 12px;
+    padding-bottom: 76px;
   }
 }
