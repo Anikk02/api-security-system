@@ -1,0 +1,481 @@
+[33mcommit 1f13af619bf1c89b21c490688019c7076f44de4a[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m
+Author: Anikk02 <kiddoanyy0208@gmail.com>
+Date:   Tue Jun 30 10:38:54 2026 +0530
+
+    Updated resolver documentation
+
+[1mdiff --git a/backend/component_details/resolver.md b/backend/component_details/resolver.md[m
+[1mindex 93eef36..48d2531 100644[m
+[1m--- a/backend/component_details/resolver.md[m
+[1m+++ b/backend/component_details/resolver.md[m
+[36m@@ -18,30 +18,191 @@[m [mThe Identity Resolver is a multi-tenant gateway component. It assigns a **consis[m
+ ---[m
+ [m
+ ## 🧱 Structure[m
+[32m+[m[32m## 🧱 Identity Model[m
+ [m
+ ```python[m
+[31m-class ClientTenantIdentity:[m
+[31m-    tenant_id: int              # Database internal ID of the B2B client application[m
+[31m-    api_key: str | None         # Original API key (or masked identifier token)[m
+[31m-    is_active: bool             # Global active/suspended flag for the client account[m
+[31m-    [m
+[31m-    # End-User tracking attributes (scoped tightly inside this specific tenant)[m
+[31m-    end_user_ip: str | None     # True remote device network address of the client's user[m
+[31m-    behavioral_fingerprint: str # Isolated unique fingerprint for this specific user session[m
+[32m+[m[32mclass Identity:[m
+[32m+[m[32m    identity_id: str                 # Composite identity (api:<key>:user:<identifier>)[m
+[32m+[m[32m    client_id: int | None            # Tenant (API owner)[m
+[32m+[m[32m    api_key: str | None[m
+[32m+[m[32m    is_anonymous: bool[m
+[32m+[m
+[32m+[m[32m    ip_address: str | None[m
+[32m+[m[32m    behavioral_fingerprint: str | None[m
+[32m+[m[32m    api_key_id: int |None[m
+[32m+[m
+[32m+[m[32m    user_identifier_type: str | None[m
+[32m+[m[32m    user_identifier_value: str | None[m
+[32m+[m[32m    is_persistent: bool[m
+ ```[m
+ [m
+[31m-### 🔄 Flow Integration[m
+[32m+[m[32m### Identity Components[m
+[32m+[m
+[32m+[m[32mThe resolver separates **Tenant Identity** from **End-User Identity**.[m
+[32m+[m
+[32m+[m[32m| Component | Purpose |[m
+[32m+[m[32m|-----------|----------|[m
+[32m+[m[32m| Client ID | Identifies the API customer (tenant) |[m
+[32m+[m[32m| API Key ID | Internal API key record |[m
+[32m+[m[32m| User Identifier | Identifies the downstream user inside that tenant |[m
+[32m+[m[32m| Behavioral Fingerprint | Tracks request behavior |[m
+[32m+[m[32m| IP Address | Network origin |[m
+[32m+[m[32m| Composite Identity | Complete unique identity used throughout the security pipeline |[m
+[32m+[m
+[32m+[m[32mExample:[m
+[32m+[m
+[32m+[m[32m```[m
+[32m+[m[32mapi:25:user:9d8d66a8-acde...[m
+[32m+[m[32m```[m
+[32m+[m
+[32m+[m[32mThis means:[m
+[32m+[m
+[32m+[m[32m- API Key #25[m
+[32m+[m[32m- End-user UUID `9d8d66...`[m
+[32m+[m
+[32m+[m[32mEvery downstream security engine uses this composite identity instead of only an IP address.[m
+[32m+[m
+[32m+[m[32m---[m
+[32m+[m
+[32m+[m[32m## 👤 End-User Identification[m
+[32m+[m
+[32m+[m[32mOne API key may represent thousands of users.[m
+[32m+[m
+[32m+[m[32mThe resolver therefore performs **per-user identification** inside every authenticated tenant.[m
+[32m+[m
+[32m+[m[32m### Identification Priority[m
+[32m+[m
+[32m+[m[32m```[m
+[32m+[m[32m1. Secure Cookie[m
+[32m+[m[32m        ↓[m
+[32m+[m[32m2. JWT Subject/User ID[m
+[32m+[m[32m        ↓[m
+[32m+[m[32m3. IP + User-Agent Fingerprint[m
+[32m+[m[32m        ↓[m
+[32m+[m[32m4. Generated UUID[m
+[32m+[m[32m```[m
+[32m+[m
+[32m+[m[32m---[m
+[32m+[m
+[32m+[m[32m### 1. Cookie Identification[m
+[32m+[m
+[32m+[m[32mIf the browser already owns[m
+[32m+[m
+[32m+[m[32m```[m
+[32m+[m[32mX-TrianSec-User-ID[m
+[32m+[m[32m```[m
+[32m+[m
+[32m+[m[32mthe resolver immediately identifies the user.[m
+[32m+[m
+[32m+[m[32mAdvantages[m
+[32m+[m
+[32m+[m[32m- Persistent[m
+[32m+[m[32m- Very fast[m
+[32m+[m[32m- Stable across sessions[m
+[32m+[m[32m- Independent of IP changes[m
+[32m+[m
+[32m+[m[32m---[m
+[32m+[m
+[32m+[m[32m### 2. JWT Identification[m
+[32m+[m
+[32m+[m[32mIf the client application sends[m
+[32m+[m
+[32m+[m[32m```[m
+[32m+[m[32mAuthorization: Bearer <token>[m
+[32m+[m[32m```[m
+[32m+[m
+[32m+[m[32mthe resolver attempts to extract[m
+[32m+[m
+[32m+[m[32m```[m
+[32m+[m[32msub[m
+[32m+[m[32m```[m
+[32m+[m
+[32m+[m[32mor another configured user identifier.[m
+[32m+[m
+[32m+[m[32mAdvantages[m
+[32m+[m
+[32m+[m[32m- Stable[m
+[32m+[m[32m- Authenticated[m
+[32m+[m[32m- Cross-device support[m
+[32m+[m[32m- Ideal for SaaS platforms[m
+[32m+[m
+[32m+[m[32m---[m
+[32m+[m
+[32m+[m[32m### 3. Behavioral Fingerprint[m
+[32m+[m
+[32m+[m[32mIf no persistent identifier exists,[m
+[32m+[m
+[32m+[m[32mthe resolver creates[m
+[32m+[m
+[32m+[m[32m```[m
+[32m+[m[32mSHA256(IP + User-Agent)[m
+[32m+[m[32m```[m
+[32m+[m
+[32m+[m[32mThis provides temporary user tracking until a stronger identity becomes available.[m
+[32m+[m
+[32m+[m[32m---[m
+[32m+[m
+[32m+[m[32m### 4. UUID Generation[m
+[32m+[m
+[32m+[m[32mIf none of the above identifiers exist,[m
+[32m+[m
+[32m+[m[32mthe resolver generates[m
+[32m+[m
+[32m+[m[32m```[m
+[32m+[m[32mUUIDv4[m
+[32m+[m[32m```[m
+[32m+[m
+[32m+[m[32mstores it as[m
+[32m+[m
+[32m+[m[32m```[m
+[32m+[m[32mX-TrianSec-User-ID[m
+[32m+[m[32m```[m
+[32m+[m
+[32m+[m[32mand upgrades future requests into persistent identities.[m
+[32m+[m
+[32m+[m[32mThis allows anonymous visitors to become consistently identifiable without requiring login.[m
+[32m+[m
+[32m+[m[32m---[m
+[32m+[m
+[32m+[m[32m## 🔄 Identity Resolution Flow[m
+ [m
+ ```text[m
+[31m-End-User Device[m
+[31m-      ↓[m
+[31m-Client Application Integration[m
+[31m-      ↓[m
+[31m-  API Gateway (X-API-KEY)[m
+[31m-      ↓[m
+[31m-Identity Resolver (This Component: Maps Tenant + Fingerprints End-User)[m
+[31m-      ↓[m
+[31m-Tenant-Aware Rate Limiting & Threat Processing[m
+[32m+[m[32mIncoming Request[m
+[32m+[m[32m        │[m
+[32m+[m[32m        ▼[m
+[32m+[m[32mExtract Client IP[m
+[32m+[m[32m        │[m
+[32m+[m[32m        ▼[m
+[32m+[m[32mAPI Key Present?[m
+[32m+[m[32m   │            │[m
+[32m+[m[32m  Yes           No[m
+[32m+[m[32m   │            │[m
+[32m+[m[32mValidate API Key │[m
+[32m+[m[32m   │            │[m
+[32m+[m[32mAuthenticated?   │[m
+[32m+[m[32m   │            │[m
+[32m+[m[32m   ▼            ▼[m
+[32m+[m[32mResolve User   Anonymous Identity[m
+[32m+[m[32mIdentifier[m
+[32m+[m[32m   │[m
+[32m+[m[32m   ▼[m
+[32m+[m[32mCookie?[m
+[32m+[m[32m   │[m
+[32m+[m[32m JWT?[m
+[32m+[m[32m   │[m
+[32m+[m[32m Fingerprint?[m
+[32m+[m[32m   │[m
+[32m+[m[32m Generate UUID[m
+[32m+[m[32m   │[m
+[32m+[m[32m   ▼[m
+[32m+[m[32mComposite Identity[m
+[32m+[m[32m(api:key:user:id)[m
+[32m+[m[32m   │[m
+[32m+[m[32m   ▼[m
+[32m+[m[32mBehavioral Fingerprint[m
+[32m+[m[32m   │[m
+[32m+[m[32m   ▼[m
+[32m+[m[32mRisk Engine[m
+ ```[m
+ [m
+ ---[m
+[36m@@ -58,86 +219,152 @@[m [mIn a B2B platform model, a single client API key multiplexes traffic from thousa[m
+ [m
+ ---[m
+ [m
+[31m-## 🔧 Implementation Details[m
+[32m+[m[32m## 🍪 Persistent User Tracking[m
+ [m
+[31m-### Edge IP Extraction (End-User vs Proxy Chain)[m
+[31m-```python[m
+[31m-TRUST_PROXY = True  # Configurable[m
+[31m-[m
+[31m-def extract_client_ips(request: Request) -> tuple[str, str]:[m
+[31m-    # Direct network caller is typically the Client Application Server[m
+[31m-    client_app_server_ip = request.client.host [m
+[31m-    [m
+[31m-    if TRUST_PROXY:[m
+[31m-        forwarded_ips = request.headers.get("X-Forwarded-For")[m
+[31m-        if forwarded_ips:[m
+[31m-            # First entry in the chain represents the original End-User device[m
+[31m-            end_user_ip = forwarded_ips.split(",")[0].strip()[m
+[31m-            return end_user_ip, client_app_server_ip[m
+[31m-            [m
+[31m-    return client_app_server_ip, client_app_server_ip[m
+[32m+[m[32mFor first-time users, the resolver automatically generates a secure UUID and stores it inside[m
+[32m+[m
+[32m+[m[32m```[m
+[32m+[m[32mX-TrianSec-User-ID[m
+[32m+[m[32m```[m
+[32m+[m
+[32m+[m[32mCookie settings[m
+[32m+[m
+[32m+[m[32m| Setting | Value |[m
+[32m+[m[32m|----------|-------|[m
+[32m+[m[32m| HttpOnly | ✅ |[m
+[32m+[m[32m| Secure | ✅ |[m
+[32m+[m[32m| SameSite | Lax |[m
+[32m+[m[32m| Path | / |[m
+[32m+[m[32m| Lifetime | 1 year |[m
+[32m+[m
+[32m+[m[32mBenefits[m
+[32m+[m
+[32m+[m[32m- Stable identities[m
+[32m+[m[32m- Better reputation tracking[m
+[32m+[m[32m- Lower false positives[m
+[32m+[m[32m- Better abuse correlation[m
+[32m+[m[32m- Survives IP changes[m
+[32m+[m
+[32m+[m[32m---[m
+[32m+[m
+[32m+[m[32m## 🧠 Behavioral Fingerprint[m
+[32m+[m
+[32m+[m[32mBehavioral fingerprints are separate from user identities.[m
+[32m+[m
+[32m+[m[32mThe fingerprint captures request characteristics instead of user ownership.[m
+[32m+[m
+[32m+[m[32mAuthenticated fingerprint:[m
+[32m+[m
+[32m+[m[32m```[m
+[32m+[m[32mSHA256([m
+[32m+[m[32mAPI_KEY +[m
+[32m+[m[32mUser-Agent +[m
+[32m+[m[32mAccept-Language +[m
+[32m+[m[32mAccept-Encoding +[m
+[32m+[m[32mPath[m
+[32m+[m[32m)[m
+[32m+[m[32m```[m
+[32m+[m
+[32m+[m[32mAnonymous fingerprint:[m
+[32m+[m
+[32m+[m[32m```[m
+[32m+[m[32mSHA256([m
+[32m+[m[32mUser-Agent +[m
+[32m+[m[32mAccept-Language +[m
+[32m+[m[32mAccept-Encoding +[m
+[32m+[m[32mPath[m
+[32m+[m[32m)[m
+[32m+[m[32m```[m
+[32m+[m
+[32m+[m[32mBehavioral fingerprints are used for[m
+[32m+[m
+[32m+[m[32m- behavioral clustering[m
+[32m+[m[32m- anomaly detection[m
+[32m+[m[32m- trust scoring[m
+[32m+[m[32m- adaptive rate limiting[m
+[32m+[m
+[32m+[m[32mrather than permanent identification.[m
+[32m+[m
+[32m+[m[32m---[m
+[32m+[m
+[32m+[m[32m## 🆔 Composite Identity[m
+[32m+[m
+[32m+[m[32mEvery authenticated request receives a globally unique identity.[m
+[32m+[m
+[32m+[m[32mFormat[m
+[32m+[m
+[32m+[m[32m```[m
+[32m+[m[32mapi:<api_key_id>:user:<user_identifier>[m
+[32m+[m[32m```[m
+[32m+[m
+[32m+[m[32mExamples[m
+[32m+[m
+[32m+[m[32m```[m
+[32m+[m[32mapi:12:user:76b5...[m
+[32m+[m[32mapi:12:user:john@example.com[m
+[32m+[m[32mapi:12:user:f14ac...[m
+[32m+[m[32m```[m
+[32m+[m
+[32m+[m[32mThis prevents collisions between tenants.[m
+[32m+[m
+[32m+[m[32mThe same downstream user existing under two different API customers becomes two independent identities.[m
+[32m+[m
+[32m+[m[32m```[m
+[32m+[m[32mTenant A[m
+[32m+[m[32mapi:15:user:alice[m
+[32m+[m
+[32m+[m[32mTenant B[m
+[32m+[m[32mapi:42:user:alice[m
+ ```[m
+ [m
+[32m+[m[32mThese identities remain completely isolated.[m
+[32m+[m
+[32m+[m[32m---[m
+ ### Tenant Authentication Flow[m
+ 1. Intercept the incoming payload and inspect the `X-API-KEY` header.[m
+ 2. Query the storage backend or cache for the tenant matching the key.[m
+ 3. Validate if the client account status is currently marked active.[m
+ 4. Extract the downstream end-user network parameters and apply an isolated session tracking index.[m
+ [m
+[31m-### Tenant-Scoped End-User Fingerprint Generation[m
+[31m-```python[m
+[31m-def _generate_tenant_user_fingerprint(request: Request, tenant_id: int, end_user_ip: str) -> str:[m
+[31m-    ua = request.headers.get("user-agent", "")[m
+[31m-    accept_lang = request.headers.get("accept-language", "")[m
+[31m-    accept_enc = request.headers.get("accept-encoding", "")[m
+[31m-    [m
+[31m-    # Fingerprint is explicitly prefixed with the Tenant ID.[m
+[31m-    # This intentionally prevents tracking users across separate client systems.[m
+[31m-    raw_payload = f"tenant:{tenant_id}:ip:{end_user_ip}:ua:{ua}:lang:{accept_lang}:enc:{accept_enc}"[m
+[31m-    return hashlib.sha256(raw_payload.encode()).hexdigest()[m
+[32m+[m[32m```text[m
+[32m+[m[32mTenant[m
+[32m+[m[32m   │[m
+[32m+[m[32m   ├── API Key[m
+[32m+[m[32m   │      │[m
+[32m+[m[32m   │      ├── User Identity[m
+[32m+[m[32m   │      │       │[m
+[32m+[m[32m   │      │       ├── Cookie[m
+[32m+[m[32m   │      │       ├── JWT[m
+[32m+[m[32m   │      │       ├── Fingerprint[m
+[32m+[m[32m   │      │       └── UUID[m
+[32m+[m[32m   │      │[m
+[32m+[m[32m   │      └── Behavioral Fingerprint[m
+[32m+[m[32m   │[m
+[32m+[m[32m   └── Composite Identity[m
+ ```[m
+ [m
+ ---[m
+ [m
+[31m-## 📊 Logging[m
+[32m+[m[32m## 🔐 Security Improvements[m
+ [m
+[31m-The resolver tracks tenant validation metrics and downstream anomalies:[m
+[31m-* **INFO**: Tenant authentication success, dynamic end-user fingerprint generation maps.[m
+[31m-* **WARNING**: Inactive/Suspended client key attempts, high end-user-to-IP concentration clusters.[m
+[31m-* **DEBUG**: Complete header chain parse details, execution latency intervals.[m
+[32m+[m[32mCompared with the previous implementation, the resolver now provides:[m
+ [m
+[31m-```text[m
+[31m-[IDENTITY] Resolving for route=/v1/sync tenant_header=present[m
+[31m-[IDENTITY] Client App Gateway connected from ip=54.210.43.12[m
+[31m-[IDENTITY] X-Forwarded-For end-user trace detected → user_ip=192.168.1.100[m
+[31m-[IDENTITY] Authenticated Tenant ID=1048 [Active] User Fingerprint=e3b0c442...[m
+[31m-```[m
+[32m+[m[32m- API key cache support[m
+[32m+[m[32m- Persistent user identities[m
+[32m+[m[32m- Cookie-based tracking[m
+[32m+[m[32m- JWT integration[m
+[32m+[m[32m- Composite identities[m
+[32m+[m[32m- Tenant isolation[m
+[32m+[m[32m- Better behavioral fingerprints[m
+[32m+[m[32m- Reduced false positives[m
+[32m+[m[32m- Stable anonymous user tracking[m
+[32m+[m[32m- Middleware-based cookie management[m
+ [m
+ ---[m
+ [m
+ ## ❌ What's Missing (Current Gaps)[m
+ [m
+[31m-### 1. API Key Caching[m
+[31m-* **Problem**: Every single downstream end-user request triggers a database query to validate the host client's API key.[m
+[31m-* **Impact**: Extreme database connection overhead and latency spikes under real-world multi-tenant traffic.[m
+[31m-* **Solution**: Cache verified client tenant metadata records inside a fast Redis layer with an explicit TTL.[m
+[31m-```python[m
+[31m-cached_tenant = await redis.get(f"tenant_key:{api_key}")[m
+[31m-if cached_tenant:[m
+[31m-    return ClientTenantIdentity(**json.loads(cached_tenant))[m
+[31m-```[m
+[31m-[m
+[31m-### 2. Rate Limiting on Invalid API Keys[m
+[31m-* **Problem**: Zero systemic verification limits for missing, bad, or random key lookups.[m
+[31m-* **Impact**: Attackers can run distributed brute-force token scanners directly against the primary gateway cache/database.[m
+[31m-* **Solution**: Track consecutive auth failures based on the direct incoming client server IP address via Redis sliding blocks.[m
+[31m-```python[m
+[31m-failed_attempts = await redis.incr(f"failed_auth:{connecting_ip}")[m
+[31m-if failed_attempts > 20:[m
+[31m-    return HTTP_429_TOO_MANY_REQUESTS[m
+[31m-```[m
+[31m-[m
+[31m-### 3. Missing Multi-Proxy Header Support[m
+[32m+[m[32m### 1. Missing Multi-Proxy Header Support[m
+ * **Problem**: The resolver assumes all upstream environments forward traffic through standard `X-Forwarded-For` protocols.[m
+ * **Impact**: Breaks downstream end-user IP tracking when client applications rely on specialized cloud layers or CDNs.[m
+ * **Solution**: Support multi-header identification priority schemas to extract true network sources reliably.[m
+[36m@@ -148,41 +375,30 @@[m [mfor header in proxy_headers:[m
+         end_user_ip = request.headers[header].split(",")[0].strip()[m
+         break[m
+ ```[m
+[31m-[m
+[31m-### 4. No Live API Key Revocation Checking[m
+[31m-* **Problem**: Revoking compromised client credentials manually has an propagation lag across active memory caches.[m
+[31m-* **Impact**: Compromised tokens or banned tenants continue processing traffic until historical caches cycle naturally.[m
+[31m-* **Solution**: Implement transactional database webhooks to clear precise key indices in Redis instantly upon deletion.[m
+[31m-[m
+[31m-### 5. Missing Contextual Request ID Tracking[m
+[32m+[m[32m### 2. Missing Contextual Request ID Tracking[m
+ * **Problem**: Distributed system layers process client packages without a unified processing identifier.[m
+ * **Impact**: Impossible to map step-by-step transaction logs when debugging system crashes or tenant disputes.[m
+ * **Solution**: Automatically generate or forward a unique `X-Request-ID` signature downstream.[m
+ [m
+[31m-### 6. Missing Token Expiration Policies[m
+[32m+[m[32m### 3. Missing Token Expiration Policies[m
+ * **Problem**: Generated B2B client application API keys are infinitely valid by default.[m
+ * **Impact**: If a client commits their backend configuration variables to a public repository, the key remains open forever.[m
+ * **Solution**: Enforce structural expiration timestamps within the database management entity schema.[m
+ [m
+[31m-### 7. Weak Anonymous End-User Fingerprinting[m
+[31m-* **Problem**: End-users browsing under shared networks (e.g., enterprise VPNs, offices, cellular CGNAT) resolve to matching profiles.[m
+[31m-* **Impact**: High risk of false-positives where blocking one abusive user mistakenly locks out an entire office pool on that client's app.[m
+[31m-* **Solution**: Mix explicit system user IDs, device markers, and network context values into the hashing sequence.[m
+[31m-[m
+[31m-### 8. Dynamic End-User IP Migration Tracking[m
+[32m+[m[32m### 4. Dynamic End-User IP Migration Tracking[m
+ * **Problem**: Legitimate users shifting from Wi-Fi networks to mobile data cells change their IP and break correlation tracking.[m
+ * **Impact**: Low-and-slow abuse signatures distributed across dynamic cell networks look like unlinked user interactions.[m
+ * **Solution**: Provide integration parameters allowing clients to pass a secure local session identifier for deep correlation tracking.[m
+ [m
+[31m-### 9. Lack of IPv6 Address Normalization[m
+[32m+[m[32m### 5. Lack of IPv6 Address Normalization[m
+ * **Problem**: Different notations of the same raw IPv6 network address read as entirely distinct string values.[m
+ * **Impact**: End-user fingerprint signatures fragment if requests vary between full, uncompressed, or short notation styles.[m
+ * **Solution**: Strip zone tracking values and standardize IPv6 strings before computing hashing pipelines.[m
+ [m
+[31m-### 10. Missing Edge Real-Time Network Blocklists[m
+[32m+[m[32m### 6. Missing Edge Real-Time Network Blocklists[m
+ * **Problem**: Known threat vectors and scanning clusters process through token identification before being rejected.[m
+ * **Impact**: Unnecessary memory usage and computation cycles are thrown away parsing traffic from known bad subnets.[m
+ * **Solution**: Match the immediate upstream server IP directly against memory blocks before execution.[m
+ [m
+[31m-### 11. Missing Audit Trail Logging[m
+[32m+[m[32m### 7. Missing Audit Trail Logging[m
+ * **Problem**: Security telemetry reports do not store a permanent, immutable record of authorization state changes.[m

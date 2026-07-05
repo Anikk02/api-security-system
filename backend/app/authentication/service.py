@@ -130,8 +130,8 @@ async def register_client(
 async def login_client(
     db: AsyncSession,
     data: ClientLogin,
-    ip_address: Optional[str] = None,
-    device_info: Optional[str] = None,
+    ip_address: Optional[str] = None,   
+    device_info: Optional[str] = None,  
 ) -> TokenResponse:
     """
     Authenticate a client and return JWT token pair.

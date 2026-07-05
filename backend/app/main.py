@@ -23,7 +23,8 @@ from app.api.routes.activity import router as activity_router
 from app.api.routes.settings import router as settings_router
 from app.api.routes.usage import router as usage_router
 from app.api.routes.api_keys import router as api_router
-
+from app.api.routes import dashboard
+from app.api.routes.developer import router as developer_router   
 
 #Setup logging
 setup_logging()
@@ -69,6 +70,7 @@ app.include_router(activity_router)
 app.include_router(api_router)
 app.include_router(usage_router)
 app.include_router(settings_router)
+app.include_router(developer_router)                             
 
 #Add middleware
 app.add_middleware(RequestMiddleware)
