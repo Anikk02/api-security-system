@@ -14,13 +14,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models.request_log import RequestLog
 from app.db.models.client import Client
 from app.developer.utils.aggregations import requests_per_hour, requests_per_day
+from app.websocket.developer_manager import developer_websocket_manager
 
 logger = logging.getLogger(__name__)
 
 
 # ── 1. Overview ───────────────────────────────────────────────────────────────
 
-async def get_overview(db: AsyncSession) -> dict:
+async def get_overview(db: AsyncSession, broadcast: bool = False) -> dict:
     """Total requests (all-time + today), active/total clients, top 5 consumers, 24h throughput."""
     now = datetime.utcnow()
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -67,7 +68,7 @@ async def get_overview(db: AsyncSession) -> dict:
     throughput_rows = await requests_per_hour(db, hours=24)
     throughput = [{"time": bucket, "requests": cnt} for bucket, cnt in throughput_rows]
 
-    return {
+    result = {
         "total_requests_all_time": totals_row.all_time or 0,
         "total_requests_today": totals_row.today or 0,
         "active_clients": client_counts_row.active or 0,
@@ -76,10 +77,19 @@ async def get_overview(db: AsyncSession) -> dict:
         "throughput_last_24h": throughput,
     }
 
+    # Broadcast metrics update via WebSocket
+    if broadcast:
+        await developer_websocket_manager.broadcast_metrics_update({
+            "type": "overview",
+            "payload": result
+        })
+
+    return result
+
 
 # ── 2. Traffic Analytics ──────────────────────────────────────────────────────
 
-async def get_traffic(db: AsyncSession) -> dict:
+async def get_traffic(db: AsyncSession, broadcast: bool = False) -> dict:
     """Requests by endpoint, by client, 7-day trend, and load distribution."""
     by_endpoint_result = await db.execute(
         select(RequestLog.endpoint, func.count(RequestLog.id).label("count"))
@@ -105,17 +115,25 @@ async def get_traffic(db: AsyncSession) -> dict:
     trend_rows = await requests_per_day(db, days=7)
     trend = [{"day": bucket, "count": cnt} for bucket, cnt in trend_rows]
 
-    return {
+    result = {
         "requests_by_endpoint": by_endpoint,
         "requests_by_client": by_client,
         "traffic_trend_7d": trend,
         "load_distribution": by_endpoint,  # same data, alias used by frontend chart
     }
 
+    if broadcast:
+        await developer_websocket_manager.broadcast_metrics_update({
+            "type": "traffic",
+            "payload": result
+        })
+
+    return result
+
 
 # ── 3. Abuse Monitoring ───────────────────────────────────────────────────────
 
-async def get_abuse(db: AsyncSession) -> dict:
+async def get_abuse(db: AsyncSession, broadcast: bool = False) -> dict:
     """Top abusive clients, most-blocked IPs, high-frequency sources, endpoint abuse patterns."""
     block_filter = RequestLog.action == "block"
 
@@ -176,9 +194,20 @@ async def get_abuse(db: AsyncSession) -> dict:
         for row in endpoint_abuse_result.all()
     ]
 
-    return {
+    result = {
         "top_abusive_clients": abusive_clients,
         "most_blocked_ips": blocked_ips,
         "high_freq_sources": high_freq,
         "endpoint_abuse_patterns": endpoint_abuse,
     }
+
+    # Broadcast abuse alert if significant abuse detected
+    if broadcast and abusive_clients:
+        await developer_websocket_manager.broadcast_abuse_alert({
+            "type": "abuse_detected",
+            "top_abusive_clients": abusive_clients[:3],
+            "most_blocked_ips": blocked_ips[:3],
+            "timestamp": datetime.utcnow().isoformat()
+        })
+
+    return result
