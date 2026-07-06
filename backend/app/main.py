@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -9,6 +10,7 @@ from app.middleware.request_middleware import RequestMiddleware
 from app.db.base import Base
 from app.db.session import engine
 from app.websocket.manager import websocket_manager
+from app.websocket.developer_manager import developer_websocket_manager  # Import developer manager
 from app.authentication import routes as auth_routes
 
 # Import all models to ensure they're created
@@ -23,19 +25,19 @@ from app.api.routes.activity import router as activity_router
 from app.api.routes.settings import router as settings_router
 from app.api.routes.usage import router as usage_router
 from app.api.routes.api_keys import router as api_router
-from app.api.routes import dashboard
 from app.api.routes.developer import router as developer_router   
+from app.authentication import admin_routes
 
-#Setup logging
+# Setup logging
 setup_logging()
 logger = logging.getLogger(__name__)
 
-#Lifespan(startup-shutdown)
+# Lifespan (startup-shutdown)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info('Starting API Security System...')
 
-    #create DB tables
+    # Create DB tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
@@ -45,7 +47,7 @@ async def lifespan(app: FastAPI):
 
     logger.info("Shutting down API Security System...")
 
-#Create app
+# Create app
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
@@ -60,7 +62,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],
-    max_age=3600, #Cache preflight requests for 1 hour
+    max_age=3600,  # Cache preflight requests for 1 hour
 )
 
 # Include API routes
@@ -70,14 +72,17 @@ app.include_router(activity_router)
 app.include_router(api_router)
 app.include_router(usage_router)
 app.include_router(settings_router)
-app.include_router(developer_router)                             
+app.include_router(developer_router)   
+app.include_router(admin_routes.router)                          
 
-#Add middleware
+# Add middleware
 app.add_middleware(RequestMiddleware)
 
+# ── WebSocket Endpoints ──────────────────────────────────────────────────────
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
+    """Client WebSocket endpoint for real-time client updates."""
     await websocket_manager.connect(websocket)
     try:
         while True:
@@ -89,6 +94,58 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         websocket_manager.disconnect(websocket)
 
+
+@app.websocket("/api/developer/ws")
+async def developer_websocket_endpoint(websocket: WebSocket):
+    """
+    Developer Panel WebSocket endpoint for real-time updates.
+    Handles authentication via query parameter token (optional in dev mode).
+    """
+    # TODO: Add authentication for production
+    # For now, accepts all connections (development mode)
+    # In production, validate token from query params:
+    # token = websocket.query_params.get("token")
+    # if not token or not validate_token(token):
+    #     await websocket.close(code=1008, reason="Authentication failed")
+    #     return
+    
+    await developer_websocket_manager.connect(websocket)
+    
+    try:
+        # Send initial connection confirmation
+        await websocket.send_json({
+            "type": "connection_established",
+            "message": "Connected to Developer Panel WebSocket",
+            "connection_id": developer_websocket_manager.connection_counter
+        })
+        
+        # Keep connection alive and listen for client messages
+        while True:
+            data = await websocket.receive_text()
+            
+            # Handle ping/pong
+            if data == "ping":
+                await websocket.send_json({
+                    "type": "pong",
+                    "timestamp": datetime.utcnow().isoformat()
+                })
+            else:
+                # Echo back for debugging (optional)
+                try:
+                    import json
+                    message = json.loads(data)
+                    await websocket.send_json({
+                        "type": "ack",
+                        "message": f"Received: {message.get('action', 'unknown')}"
+                    })
+                except:
+                    pass
+                
+    except WebSocketDisconnect:
+        developer_websocket_manager.disconnect(websocket)
+    except Exception as e:
+        logger.error(f"Developer WebSocket error: {e}")
+        developer_websocket_manager.disconnect(websocket)
 
 #Test endpoint
 @app.get('/api/test')
