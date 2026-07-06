@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.request_log import RequestLog
 from app.developer.utils.filters import apply_request_log_filters
+from app.websocket.developer_manager import developer_websocket_manager
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,7 @@ async def get_logs(
     end_time: datetime | None = None,
     page: int = 1,
     page_size: int = 50,
+    broadcast: bool = False,
 ) -> dict:
     """Return one page of RequestLog rows matching the given filters, newest first."""
     if page < 1:
@@ -56,6 +58,22 @@ async def get_logs(
         query.order_by(RequestLog.created_at.desc()).offset(offset).limit(page_size)
     )
     logs = rows_result.scalars().all()
+
+    # Broadcast new log if a single new entry and broadcast is True
+    if broadcast and logs and len(logs) == 1:
+        log_entry = logs[0]
+        await developer_websocket_manager.broadcast_new_log({
+            "id": log_entry.id,
+            "request_uuid": log_entry.request_uuid,
+            "client_id": log_entry.client_id,
+            "identity_id": log_entry.identity_id,
+            "endpoint": log_entry.endpoint,
+            "method": log_entry.method,
+            "ip_address": log_entry.ip_address,
+            "action": log_entry.action,
+            "status_code": log_entry.status_code,
+            "created_at": log_entry.created_at.isoformat() if log_entry.created_at else None,
+        })
 
     return {
         "total": total,
