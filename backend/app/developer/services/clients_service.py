@@ -5,6 +5,7 @@ no new auth system. Mirrors the query/commit/refresh pattern already
 used in app/api/routes/api_keys.py.
 """
 import logging
+from datetime import datetime
 
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models.client import Client
 from app.db.models.api_key import APIKey
 from app.db.models.request_log import RequestLog
+from app.websocket.developer_manager import developer_websocket_manager
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +113,16 @@ async def set_client_status(db: AsyncSession, client_id: int, new_status: str) -
     await db.refresh(client)
 
     logger.info(f"[DEVELOPER PANEL] Client {client_id} status set to '{new_status}'")
+    
+    # Broadcast client status update via WebSocket
+    await developer_websocket_manager.broadcast_client_update({
+        "client_id": client.id,
+        "status": client.status,
+        "email": client.email,
+        "company_name": client.company_name,
+        "updated_at": datetime.utcnow().isoformat()
+    })
+    
     return {"id": client.id, "status": client.status}
 
 
@@ -129,4 +141,14 @@ async def revoke_api_key(db: AsyncSession, api_key_id: int) -> dict | None:
     await db.refresh(key_obj)
 
     logger.info(f"[DEVELOPER PANEL] API key {api_key_id} revoked (client {key_obj.client_id})")
+    
+    # Broadcast API key revocation via WebSocket
+    await developer_websocket_manager.broadcast_client_update({
+        "client_id": key_obj.client_id,
+        "api_key_id": key_obj.id,
+        "api_key_name": key_obj.name,
+        "is_active": key_obj.is_active,
+        "revoked_at": datetime.utcnow().isoformat()
+    })
+    
     return {"id": key_obj.id, "client_id": key_obj.client_id, "is_active": key_obj.is_active}
