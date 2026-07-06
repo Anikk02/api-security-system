@@ -30,6 +30,7 @@ CONTROL_PLANE_PREFIXES = [
     "/api/dashboard/traffic",
     "/api/dashboard/suspicious-users",
     "/api/dashboard/logs",
+    "/api/developer",
 ]
 
 # Initialize rate limiter
