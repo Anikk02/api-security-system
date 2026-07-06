@@ -1,11 +1,12 @@
 """
 Business logic for Debug Tools.
-Joins RequestLog with DecisionLog, FeatureLog, and MLPrediction by
-request_id — surfacing the exact same explainability data the Security
-Engine already writes (see app/explainability/explainer.py), without
+Joins RequestLog with DecisionLog and FeatureLog by request_id — 
+surfacing the exact same explainability data the Security Engine 
+already writes (see app/explainability/explainer.py), without
 duplicating any of that logic here.
 """
 import logging
+from datetime import datetime
 
 from sqlalchemy import select, func, case
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,8 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models.request_log import RequestLog
 from app.db.models.decision_log import DecisionLog
 from app.db.models.feature_log import FeatureLog
-from app.db.models.ml_prediction import MLPrediction
 from app.state.state_manager import StateManager
+from app.websocket.developer_manager import developer_websocket_manager
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +29,12 @@ class _IdentityRef:
         self.identity_id = identity_id
 
 
-async def get_request_debug(db: AsyncSession, request_log_id: int) -> dict | None:
-    """Full lifecycle for one request: RequestLog + DecisionLog + FeatureLog + MLPrediction."""
+async def get_request_debug(
+    db: AsyncSession, 
+    request_log_id: int,
+    broadcast: bool = False
+) -> dict | None:
+    """Full lifecycle for one request: RequestLog + DecisionLog + FeatureLog."""
     log_result = await db.execute(select(RequestLog).where(RequestLog.id == request_log_id))
     request_log = log_result.scalar_one_or_none()
     if not request_log:
@@ -45,18 +50,18 @@ async def get_request_debug(db: AsyncSession, request_log_id: int) -> dict | Non
     )
     feature_log = feature_result.scalar_one_or_none()
 
-    ml_result = await db.execute(
-        select(MLPrediction).where(MLPrediction.request_id == request_log_id)
-    )
-    ml_prediction = ml_result.scalar_one_or_none()
-
     decision_dict = None
     if decision:
         decision_dict = {
             "id": decision.id,
+            "request_uuid": decision.request_uuid,
+            "identity_id": decision.identity_id,
+            "client_id": decision.client_id,
+            "api_key_id": decision.api_key_id,
             "action": decision.action,
             "reason": decision.reason,
             "risk_score": decision.risk_score,
+            "ground_truth_label": decision.ground_truth_label,
             "explanation": decision.explanation,
             "explanation_json": decision.explanation_json,
             "created_at": decision.created_at,
@@ -71,25 +76,34 @@ async def get_request_debug(db: AsyncSession, request_log_id: int) -> dict | Non
             "identity_features": feature_log.identity_features,
         }
 
-    ml_dict = None
-    if ml_prediction:
-        ml_dict = {
-            "risk_score": ml_prediction.risk_score,
-            "risk_label": ml_prediction.risk_label,
-            "feature_contributions": ml_prediction.feature_contributions,
-            "explanation": ml_prediction.explanation,
-            "model_version": ml_prediction.model_version,
-        }
-
-    return {
+    result = {
         "request_log": request_log,
         "decision": decision_dict,
         "features": features_dict,
-        "ml_prediction": ml_dict,
     }
 
+    # Broadcast debug info if a suspicious pattern is detected
+    if broadcast and decision_dict and decision_dict.get("action") == "block":
+        await developer_websocket_manager.broadcast_abuse_alert({
+            "type": "debug_insight",
+            "request_id": request_log_id,
+            "identity_id": request_log.identity_id,
+            "client_id": request_log.client_id,
+            "action": decision_dict.get("action"),
+            "risk_score": decision_dict.get("risk_score"),
+            "reason": decision_dict.get("reason"),
+            "explanation": decision_dict.get("explanation"),
+            "timestamp": datetime.utcnow().isoformat()
+        })
 
-async def get_identity_debug_summary(db: AsyncSession, identity_id: str) -> dict | None:
+    return result
+
+
+async def get_identity_debug_summary(
+    db: AsyncSession, 
+    identity_id: str,
+    broadcast: bool = False
+) -> dict | None:
     """Counts, recent decisions, and live Redis block state for one identity_id."""
     total_result = await db.execute(
         select(func.count(RequestLog.id)).where(RequestLog.identity_id == identity_id)
@@ -126,6 +140,8 @@ async def get_identity_debug_summary(db: AsyncSession, identity_id: str) -> dict
             "id": d.id,
             "action": d.action,
             "risk_score": d.risk_score,
+            "reason": d.reason,
+            "explanation": d.explanation,
             "created_at": d.created_at,
         }
         for d in recent_result.scalars().all()
@@ -135,7 +151,7 @@ async def get_identity_debug_summary(db: AsyncSession, identity_id: str) -> dict
     # already calls in app/api/routes/dashboard.py:get_user_details().
     is_blocked = await StateManager.is_blocked(_IdentityRef(client_id, identity_id))
 
-    return {
+    result = {
         "identity_id": identity_id,
         "client_id": client_id,
         "total_requests": total,
@@ -145,3 +161,22 @@ async def get_identity_debug_summary(db: AsyncSession, identity_id: str) -> dict
         "is_blocked": is_blocked,
         "recent_decisions": recent_decisions,
     }
+
+    # Broadcast identity debug info if identity is blocked or has high block rate
+    if broadcast:
+        block_rate = (counts_row.blocked or 0) / total if total > 0 else 0
+        if is_blocked or block_rate > 0.5:  # More than 50% blocked requests
+            await developer_websocket_manager.broadcast_abuse_alert({
+                "type": "identity_flagged",
+                "identity_id": identity_id,
+                "client_id": client_id,
+                "is_blocked": is_blocked,
+                "block_rate": round(block_rate * 100, 2),
+                "total_requests": total,
+                "blocked_count": counts_row.blocked or 0,
+                "throttled_count": counts_row.throttled or 0,
+                "allowed_count": counts_row.allowed or 0,
+                "timestamp": datetime.utcnow().isoformat()
+            })
+
+    return result
