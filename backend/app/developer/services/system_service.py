@@ -11,11 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.request_log import RequestLog
 from app.state.redis_client import redis_client
+from app.websocket.developer_manager import developer_websocket_manager
 
 logger = logging.getLogger(__name__)
 
 
-async def get_system_health(db: AsyncSession) -> dict:
+async def get_system_health(db: AsyncSession, broadcast: bool = False) -> dict:
     """DB ping, Redis ping, error rate, and today's action breakdown."""
     now = datetime.utcnow()
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -28,7 +29,7 @@ async def get_system_health(db: AsyncSession) -> dict:
         logger.error(f"[DEVELOPER PANEL] DB health check failed: {e}")
         db_status = "down"
 
-    # ── Redis health (reuses the shared async client used everywhere else) ──
+    # ── Redis health ──
     redis_status = "healthy"
     try:
         pong = await redis_client.ping()
@@ -38,7 +39,7 @@ async def get_system_health(db: AsyncSession) -> dict:
         logger.error(f"[DEVELOPER PANEL] Redis health check failed: {e}")
         redis_status = "down"
 
-    # ── Today's action breakdown (1 query) ──
+    # ── Today's action breakdown ──
     today_result = await db.execute(
         select(
             func.count(RequestLog.id).label("total"),
@@ -63,7 +64,7 @@ async def get_system_health(db: AsyncSession) -> dict:
     # a number — add a duration_ms column to RequestLog if this is needed.
     avg_latency_ms = None
 
-    return {
+    result = {
         "db_status": db_status,
         "redis_status": redis_status,
         "avg_latency_ms": avg_latency_ms,
@@ -73,3 +74,9 @@ async def get_system_health(db: AsyncSession) -> dict:
         "throttled_today": throttled_today,
         "allowed_today": allowed_today,
     }
+
+    # Broadcast system health via WebSocket if requested
+    if broadcast:
+        await developer_websocket_manager.broadcast_system_health(result)
+
+    return result
