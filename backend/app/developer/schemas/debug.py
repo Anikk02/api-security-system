@@ -1,6 +1,6 @@
 """
 Pydantic schemas for Debug Tools.
-Pulls together RequestLog + DecisionLog + FeatureLog + MLPrediction —
+Pulls together RequestLog + DecisionLog + FeatureLog —
 the same explainability data the Security Engine already produces
 (see app/explainability/explainer.py, app/db/models/decision_log.py).
 """
@@ -15,13 +15,14 @@ class DebugRequestInfo(BaseModel):
     request_log: GlobalLogEntry
     decision: Optional[Dict[str, Any]] = None
     features: Optional[Dict[str, Any]] = None
-    ml_prediction: Optional[Dict[str, Any]] = None
 
 
 class RecentDecision(BaseModel):
     id: int
     action: str
     risk_score: Optional[float] = None
+    reason: Optional[str] = None
+    explanation: Optional[str] = None
     created_at: datetime
 
 
