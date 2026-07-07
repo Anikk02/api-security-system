@@ -1,0 +1,95 @@
+/* frontend/src/styles/metrics.css */
+.metrics-panel {
+  position: absolute;
+  bottom: 3%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: grid;
+  grid-template-columns: repeat(4, auto);
+  gap: 16px 30px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  padding: 12px 24px;
+  backdrop-filter: blur(10px);
+  z-index: 5;
+  min-width: 400px;
+}
+
+.metric-item {
+  text-align: center;
+}
+
+.metric-label {
+  color: rgba(255, 255, 255, 0.2);
+  font-size: 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+
+.metric-value-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.metric-value {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.metric-change {
+  font-size: 9px;
+  font-weight: 400;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+.metric-change.up {
+  color: #2ecc71;
+  background: rgba(46, 204, 113, 0.1);
+}
+
+.metric-change.down {
+  color: #e74c3c;
+  background: rgba(231, 76, 60, 0.1);
+}
+
+.metric-change.neutral {
+  color: #f1c40f;
+  background: rgba(241, 196, 15, 0.1);
+}
+
+@media (max-width: 992px) {
+  .metrics-panel {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px 20px;
+    padding: 10px 16px;
+    left: 5%;
+    right: 5%;
+    transform: none;
+    bottom: 2%;
+    min-width: unset;
+    width: auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .metrics-panel {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 12px;
+    padding: 8px 12px;
+  }
+  
+  .metric-value {
+    font-size: 14px;
+  }
+  
+  .metric-change {
+    font-size: 7px;
+  }
+}

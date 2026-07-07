@@ -9,38 +9,58 @@ MAX_ENDPOINT_ENTROPY = math.log2(50)
 
 # Minimum baseline req/sec before burst ratio is meaningful
 BURST_BASELINE_THRESHOLD = 0.1
+
+# Sensitive endpoint definitions (matching risk_engine.py)
+_SENSITIVE_EXACT = {
+    "/login", "/auth", "/admin", "/payment", "/reset-password",
+    "/api/data", "/api/secure",
+}
+
+_SENSITIVE_PREFIXES = (
+    "/api/admin",
+    "/api/user",
+    "/api/secure",
+    "/api/data",
+)
+
 class FeatureBuilder:
 
     def __init__(self, state_manager):
         self.state = state_manager
 
     async def build(self, identity, signals):
-        user_id = identity.user_id
+        # 🔥 UPDATED: use identity_id + client_id instead of user_id
+        identity_id = identity.identity_id
+        client_id = identity.client_id
+
+        # 🔥 UPDATED: namespaced Redis key
+        base_key = f"client:{client_id}:identity:{identity_id}"
+
         now = time.time()
 
         # SINGLE PIPELINE for all Redis reads
         pipe = redis_client.pipeline()
 
         # Request count (5 seconds)
-        ts_key = f"user:{user_id}:timestamps"
+        ts_key = f"{base_key}:timestamps"
         pipe.zcount(ts_key, now -5, now)
 
         # Request count (60 seconds)
         pipe.zcount(ts_key, now - 60, now)
 
         # Recent endpoints (60 seconds)
-        endpoint_key = f"user:{user_id}:endpoints"
+        endpoint_key = f"{base_key}:endpoints"
         pipe.zrangebyscore(endpoint_key, now - 60, now)
 
         # Error count (60 seconds)
-        error_key = f"user:{user_id}:errors"
+        error_key = f"{base_key}:errors"
         pipe.get(error_key)
 
         # Request timestamps
         pipe.zrangebyscore(ts_key, now - 60, now, withscores=True)
 
         # IP changes (300 seconds)
-        ip_key = f"user:{user_id}:ips"
+        ip_key = f"{base_key}:ips"
         pipe.smembers(ip_key)
 
         #Execute all reads in one Redis call
@@ -105,7 +125,7 @@ class FeatureBuilder:
         req_per_sec = (req_per_5sec_raw or 0) / 5
 
         #Print occassionally to avoid log spam
-        if hash(user_id) % 100 == 0: #sample 1% of requests
+        if hash(identity_id) % 100 == 0: #sample 1% of requests
             print("DEBUG -> req/sec:", req_per_sec)
             print("DEBUG -> req/min:", req_per_min)
 
@@ -120,18 +140,32 @@ class FeatureBuilder:
 
         counter = Counter(endpoints)
         total = len(endpoints)
-
-        if total > 0:
+        
+        # Require a minimum sample before trusting top_endpoint_ratio.
+        # With < 10 requests any user trivially scores 1.0 (they hit one
+        # endpoint once), making normal users look like endpoint-hammers.
+        if total >= 10:
             top_count = max(counter.values())
             top_endpoint_ratio = round(top_count / total, 4)
         else:
             top_endpoint_ratio = 0.0
 
+        # NEW: Count sensitive endpoint hits
+        sensitive_hits = 0
+        for endpoint in endpoints:
+            if endpoint in _SENSITIVE_EXACT:
+                sensitive_hits += 1
+            else:
+                for prefix in _SENSITIVE_PREFIXES:
+                    if endpoint == prefix or endpoint.startswith(prefix + "/") or endpoint.startswith(prefix + "?"):
+                        sensitive_hits += 1
+                        break
+
         # ERROR ANALYSIS
         error_count = error_count_raw or 0
         total_requests = max(req_per_min, 1)
 
-        error_rate = round(error_count / total_requests, 4) # (error_count + 1) / (total_requests + 5) -> round(error_count / total_requests, 4)
+        error_rate = round(error_count / total_requests, 4)
 
         # BURST DETECTION
         avg_per_sec = req_per_min / 60 if req_per_min > 0 else 0
@@ -182,8 +216,8 @@ class FeatureBuilder:
             regularity = 0.0
 
         # Only print occassionally
-        if hash(user_id) % 100 == 0:
-            print("DeBUG -> user:", user_id)
+        if hash(identity_id) % 100 == 0:
+            print("DeBUG -> user:", identity_id)
             print("DEBUG -> timestamps:", request_timestamps)
 
         time_variance = self._calculate_time_variance(request_timestamps)
@@ -208,8 +242,10 @@ class FeatureBuilder:
             # endpoint behavior
             'unique_endpoints': unique_endpoints,
             'endpoint_entropy': round(endpoint_entropy, 4),
-
             'top_endpoint_ratio': top_endpoint_ratio,
+
+            # NEW: sensitive hits count
+            'sensitive_hits': sensitive_hits,
 
             # errors
             'error_rate': round(error_rate, 4),
@@ -274,8 +310,6 @@ class FeatureBuilder:
         
         #normalize interval
         normalized = [i / mean for i in intervals]
-
-
 
         variance = sum((x - 1) ** 2 for x in normalized) / len(normalized)
 

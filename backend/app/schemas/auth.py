@@ -270,3 +270,55 @@ class ChangePasswordResponse(BaseModel):
     """Response after password change."""
     
     message: str = "Password changed successfully"
+
+class ChangeEmailRequest(BaseModel):
+    new_email: str
+
+
+class ChangeEmailConfirmRequest(BaseModel):
+    token: str
+
+
+class ChangeEmailResponse(BaseModel):
+    message: str
+    verification_link: Optional[str] = None
+
+
+# ============================================================
+# ADMIN AUTH (NEW)
+# ============================================================
+
+class AdminLogin(BaseModel):
+    """Schema for admin login."""
+    
+    email: EmailStr = Field(
+        ...,
+        description="Admin email address",
+        examples=["admin@triansec.com"]
+    )
+    password: str = Field(
+        ...,
+        description="Admin password",
+        examples=["SecurePass123"]
+    )
+
+
+class AdminProfileResponse(BaseModel):
+    """Admin profile response."""
+    
+    id: int
+    email: str
+    name: Optional[str] = None
+    role: str
+    status: str
+    created_at: Optional[datetime] = None
+    last_login_at: Optional[datetime] = None
+
+
+class AdminTokenResponse(BaseModel):
+    """Admin token response."""
+    
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    expires_in: int = 1800  # 30 minutes

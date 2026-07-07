@@ -10,6 +10,7 @@ from fastapi import HTTPException, status
 
 from app.db.models.client import Client
 from app.db.models.refresh_token import RefreshToken
+from app.db.models.email_change_token import EmailChangeToken
 from app.db.models.password_reset_token import PasswordResetToken
 from app.schemas.auth import (
     ClientRegister,
@@ -24,6 +25,9 @@ from app.schemas.auth import (
     ResetPasswordResponse,
     LogoutRequest,
     LogoutResponse,
+    ChangeEmailRequest,
+    ChangeEmailResponse,
+    ChangeEmailConfirmRequest,
 )
 from app.authentication.jwt_handler import (
     create_access_token,
@@ -126,8 +130,8 @@ async def register_client(
 async def login_client(
     db: AsyncSession,
     data: ClientLogin,
-    ip_address: Optional[str] = None,
-    device_info: Optional[str] = None,
+    ip_address: Optional[str] = None,   
+    device_info: Optional[str] = None,  
 ) -> TokenResponse:
     """
     Authenticate a client and return JWT token pair.
@@ -305,36 +309,40 @@ async def forgot_password(
 ) -> ForgotPasswordResponse:
     """
     Generate a password reset token.
-    
+
     Flow:
     1. Find client by email (don't reveal if not found)
     2. Generate random reset token
     3. Store hash in DB
-    4. Return token (dev mode) or send email (production)
+    4. Return reset link (dev) or send email (prod)
     """
+
     client = await _get_client_by_email(db, data.email)
-    
-    # Always return success (don't reveal if email exists)
+
+    # Always return success (avoid user enumeration)
     if not client:
         return ForgotPasswordResponse(
             message="If the email exists, a reset link has been sent"
         )
-    
-    # Generate token
+
+    # 🔐 Generate token
     raw_token = secrets.token_urlsafe(32)
     token_hash = _hash_token(raw_token)
-    
-    # Invalidate any existing reset tokens for this client
+
+    # ❌ Invalidate existing tokens
     await db.execute(
         update(PasswordResetToken)
         .where(
             PasswordResetToken.client_id == client.id,
             PasswordResetToken.used == False,
         )
-        .values(used=True, used_at=datetime.now(timezone.utc))
+        .values(
+            used=True,
+            used_at=datetime.now(timezone.utc)
+        )
     )
-    
-    # Store new reset token
+
+    # 💾 Store new token
     reset_token = PasswordResetToken(
         client_id=client.id,
         token_hash=token_hash,
@@ -342,20 +350,25 @@ async def forgot_password(
             minutes=settings.PASSWORD_RESET_EXPIRE_MINUTES
         ),
     )
+
     db.add(reset_token)
     await db.commit()
-    
+
     logger.info(f"Password reset requested for: {client.email}")
-    
-    # In dev mode, return the token directly
-    # In production, send via email and don't return it
+
+    # 🔗 Build frontend reset link
+    reset_link = f"{settings.FRONTEND_URL}/reset-password?token={raw_token}"
+
+    # 📦 Response
     response = ForgotPasswordResponse(
         message="If the email exists, a reset link has been sent"
     )
-    
+
+    # 🚧 DEV MODE ONLY → expose link
     if settings.ENVIRONMENT == "development":
-        response.reset_token = raw_token
-    
+        response.reset_link = reset_link
+        logger.info(f"[RESET LINK] {reset_link}")
+
     return response
 
 
@@ -369,62 +382,63 @@ async def reset_password(
 ) -> ResetPasswordResponse:
     """
     Reset password using a valid reset token.
-    
-    Flow:
-    1. Hash the provided token
-    2. Look up in DB
-    3. Validate (not expired, not used)
-    4. Hash new password
-    5. Update client password
-    6. Mark token as used
-    7. Revoke all refresh tokens (security: force re-login)
     """
-    # 1. Hash the token
+
+    # 1️⃣ Hash incoming token (never compare raw tokens)
     token_hash = _hash_token(data.token)
-    
-    # 2. Look up
+
+    # 2️⃣ Fetch token record
     result = await db.execute(
         select(PasswordResetToken).where(
             PasswordResetToken.token_hash == token_hash
         )
     )
     token_record = result.scalar_one_or_none()
-    
+
     if not token_record:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or expired reset token"
         )
-    
-    # 3. Validate
+
+    # 3️⃣ Validate token (expiry + usage)
     if not token_record.is_valid:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Reset token has expired or already been used"
         )
-    
-    # 4. Hash new password
-    new_hash = hash_password(data.new_password)
-    
-    # 5. Update client password
+
+    # 4️⃣ Fetch client
     client = await _get_client_by_id(db, token_record.client_id)
     if not client:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Account not found"
         )
-    
+
+    # 5️⃣ Hash new password
+    new_hash = hash_password(data.new_password)
+
+    # 🚫 OPTIONAL (recommended): prevent same password reuse
+    if verify_password(data.new_password, client.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be different from old password"
+        )
+
+    # 6️⃣ Update client security state
     client.password_hash = new_hash
     client.failed_login_attempts = 0
     client.locked_until = None
+
     if client.status == "locked":
         client.status = "active"
-    
-    # 6. Mark token as used
+
+    # 7️⃣ Mark token as used
     token_record.used = True
     token_record.used_at = datetime.now(timezone.utc)
-    
-    # 7. Revoke all refresh tokens (security: force re-login)
+
+    # 8️⃣ Revoke all refresh tokens (force logout everywhere)
     await db.execute(
         update(RefreshToken)
         .where(
@@ -436,15 +450,16 @@ async def reset_password(
             revoked_at=datetime.now(timezone.utc),
         )
     )
-    
+
+    # 9️⃣ Commit everything
     await db.commit()
-    
+
     logger.info(f"Password reset completed for: {client.email}")
-    
+    logger.warning(f"SECURITY: All sessions revoked for {client.email}")
+
     return ResetPasswordResponse(
         message="Password reset successful. Please login with your new password."
     )
-
 
 # ============================================================
 # 6. LOGOUT
@@ -502,3 +517,108 @@ async def logout_all_devices(
     logger.info(f"All sessions revoked for client_id={client_id}")
     
     return LogoutResponse(message="Logged out from all devices")
+
+
+#  ---- EMAIL CHANGE REQUEST ---- #
+async def request_email_change(
+    db: AsyncSession,
+    client: Client,
+    data: ChangeEmailRequest,
+) -> ChangeEmailResponse:
+
+    # ❌ Prevent same email
+    if client.email == data.new_email:
+        raise HTTPException(400, "New email must be different")
+
+    # ❌ Check if email already exists
+    existing = await _get_client_by_email(db, data.new_email)
+    if existing:
+        raise HTTPException(400, "Email already in use")
+
+    # 🔐 Generate token
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = _hash_token(raw_token)
+
+    # ❌ Invalidate old tokens
+    await db.execute(
+        update(EmailChangeToken)
+        .where(
+            EmailChangeToken.client_id == client.id,
+            EmailChangeToken.used == False
+        )
+        .values(used=True, used_at=datetime.now(timezone.utc))
+    )
+
+    # 💾 Store new token
+    record = EmailChangeToken(
+        client_id=client.id,
+        new_email=data.new_email,
+        token_hash=token_hash,
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=30),
+    )
+
+    db.add(record)
+    await db.commit()
+
+    # 🔗 Build link
+    link = f"{settings.FRONTEND_URL}/confirm-email?token={raw_token}"
+
+    logger.info(f"Email change requested: {client.email} → {data.new_email}")
+
+    response = ChangeEmailResponse(
+        message="Verification link sent to new email"
+    )
+
+    # DEV mode
+    if settings.ENVIRONMENT == "development":
+        response.verification_link = link
+        logger.info(f"[EMAIL CHANGE LINK] {link}")
+
+    return response
+
+
+# ---- CONFIRM EMAIL CHANGE ---- #
+
+async def confirm_email_change(
+    db: AsyncSession,
+    data: ChangeEmailConfirmRequest,
+) -> ChangeEmailResponse:
+
+    # 1️⃣ Hash token
+    token_hash = _hash_token(data.token)
+
+    # 2️⃣ Fetch record
+    result = await db.execute(
+        select(EmailChangeToken).where(
+            EmailChangeToken.token_hash == token_hash
+        )
+    )
+    record = result.scalar_one_or_none()
+
+    if not record:
+        raise HTTPException(400, "Invalid or expired token")
+
+    # 3️⃣ Validate
+    if record.used or record.expires_at < datetime.now(timezone.utc):
+        raise HTTPException(400, "Token expired or already used")
+
+    # 4️⃣ Fetch client
+    client = await _get_client_by_id(db, record.client_id)
+    if not client:
+        raise HTTPException(404, "Client not found")
+
+    # 5️⃣ Update email
+    old_email = client.email
+    client.email = record.new_email
+
+    # 6️⃣ Mark token used
+    record.used = True
+    record.used_at = datetime.now(timezone.utc)
+
+    await db.commit()
+
+    logger.info(f"Email changed: {old_email} → {client.email}")
+
+    return ChangeEmailResponse(
+        message="Email updated successfully"
+    )

@@ -1,0 +1,55 @@
+.auth-container {
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0b0f17;
+}
+
+.change-email-card {
+  background: #111827;
+  padding: 32px;
+  border-radius: 14px;
+  width: 380px;
+  box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
+  text-align: center;
+}
+
+.change-email-card h2 {
+  color: #ffffff;
+  margin-bottom: 20px;
+}
+
+.change-email-card input {
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 16px;
+  background: #0b0f17;
+  border: 1px solid #374151;
+  border-radius: 8px;
+  color: #fff;
+}
+
+.change-email-card input:focus {
+  border-color: #2563eb;
+  outline: none;
+}
+
+.change-email-card button {
+  width: 100%;
+  padding: 12px;
+  background: linear-gradient(90deg, #3b82f6, #2563eb);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  cursor: pointer;
+}
+
+.change-email-card button:hover {
+  opacity: 0.9;
+}
+
+.auth-message {
+  margin-top: 12px;
+  color: #d1d5db;
+}

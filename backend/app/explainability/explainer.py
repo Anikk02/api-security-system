@@ -17,7 +17,7 @@ class Explainer:
     """
 
     @staticmethod
-    def generate(action, reason, risk_score, features: dict, ml_data=None):
+    def generate(action, reason, risk_score, features: dict, risk_data=None):
         try:
             factors = []
             contributions = {}
@@ -97,22 +97,22 @@ class Explainer:
                 factors.append("Consistent request intervals detected")
                 contributions["request_regularity"] = regularity
 
-            # 8. ML SIGNALS (FROM RISK ENGINE)
-            if ml_data:
-                label = ml_data.get("label")
-                explanation = ml_data.get("explanation")
-                contributions_ml = ml_data.get("contributions", {})
+            # 8. TRIANSEC DECISION MAKER SIGNALS
+            if risk_data:
+                label = risk_data.get("label")
+                explanation = risk_data.get("explanation")
+                contributions_risk = risk_data.get("contributions", {})
 
                 if label == "high":
-                    factors.append("ML model indicates high-risk behavior")
+                    factors.append("TriAnSec Decision Maker flagged high-risk behavior")
                 elif label == "medium":
-                    factors.append("ML model indicates suspicious activity")
+                    factors.append("TriAnSec Decision Maker flagged suspicious activity")
 
                 if explanation:
-                    factors.append(f"ML insight: {explanation}")
+                    factors.append(f"Decision insight: {explanation}")
 
-                if contributions_ml:
-                    contributions.update(contributions_ml)
+                if contributions_risk:
+                    contributions.update(contributions_risk)
 
             # 9. FALLBACK
             if not factors:
@@ -140,11 +140,10 @@ class Explainer:
     @staticmethod
     def _build_summary(action, risk_score, reason):
         if action == "block":
-            return f"Request blocked due to high risk (score={risk_score}) - {reason}"
+            return f"Request blocked by TriAnSec Decision Maker (score={risk_score}) - {reason}"
 
         elif action == "throttle":
-            return f"Request throttled due to suspicious behavior (score={risk_score}) - {reason}"
+            return f"Request throttled by TriAnSec Decision Maker (score={risk_score}) - {reason}"
 
         else:
-            return f"Request allowed (score={risk_score}) - {reason}"
-
+            return f"Request allowed by TriAnSec Decision Maker (score={risk_score}) - {reason}"

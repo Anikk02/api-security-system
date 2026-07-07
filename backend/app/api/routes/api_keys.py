@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import secrets
+import hashlib
 
 from app.db.session import get_db
 from app.db.models.api_key import APIKey
@@ -12,19 +13,25 @@ from typing import List
 
 router = APIRouter(prefix="/api/client/keys", tags=["API Keys"])
 
+def hash_api_key(raw_key: str) -> str:
+    """Hash an API key using SHA-256"""
+    return hashlib.sha256(raw_key.encode()).hexdigest()
+
 @router.get("", response_model=List[APIKeyResponse])
 async def list_api_keys(
     current_client: Client = Depends(require_active_client),
     db: AsyncSession = Depends(get_db)
 ):
     result = await db.execute(
-        select(APIKey).where(APIKey.user_id == current_client.id).order_by(APIKey.created_at.desc())
+        select(APIKey).where(APIKey.client_id == current_client.id).order_by(APIKey.created_at.desc())
     )
     keys = result.scalars().all()
     
     response = []
     for k in keys:
-        preview = f"{k.key[:8]}...{k.key[-4:]}" if len(k.key) > 12 else k.key
+        # We don't have the raw key, only the hash, so we can't show a preview
+        # Instead, show the key ID or a placeholder
+        preview = f"key_{k.id}_{k.created_at.strftime('%Y%m%d')}"
         response.append(
             APIKeyResponse(
                 id=k.id,
@@ -43,11 +50,15 @@ async def generate_api_key(
     current_client: Client = Depends(require_active_client),
     db: AsyncSession = Depends(get_db)
 ):
+    # Generate raw API key
     raw_key = f"ts_live_{secrets.token_hex(24)}"
     
+    # Hash the key before storing
+    hashed_key = hash_api_key(raw_key)
+    
     new_key = APIKey(
-        key=raw_key,
-        user_id=current_client.id,
+        key_hash=hashed_key,  # Store the hash, not the raw key
+        client_id=current_client.id,
         name=payload.name,
         is_active=True
     )
@@ -55,6 +66,8 @@ async def generate_api_key(
     await db.commit()
     await db.refresh(new_key)
     
+    # Return the raw key to the user (they need it for authentication)
+    # Only return the full key once - after this, they must store it securely
     preview = f"{raw_key[:8]}...{raw_key[-4:]}"
     return APIKeyCreateResponse(
         id=new_key.id,
@@ -63,7 +76,7 @@ async def generate_api_key(
         is_active=new_key.is_active,
         created_at=new_key.created_at,
         last_used_at=None,
-        key=raw_key
+        key=raw_key  # Return the raw key here so the user can save it
     )
 
 @router.put("/{key_id}/status", response_model=APIKeyResponse)
@@ -74,7 +87,7 @@ async def update_key_status(
     db: AsyncSession = Depends(get_db)
 ):
     result = await db.execute(
-        select(APIKey).where(APIKey.id == key_id, APIKey.user_id == current_client.id)
+        select(APIKey).where(APIKey.id == key_id, APIKey.client_id == current_client.id)
     )
     key_obj = result.scalar_one_or_none()
     if not key_obj:
@@ -88,7 +101,8 @@ async def update_key_status(
     await db.commit()
     await db.refresh(key_obj)
     
-    preview = f"{key_obj.key[:8]}...{key_obj.key[-4:]}" if len(key_obj.key) > 12 else key_obj.key
+    # We can't show the key preview anymore since we only have the hash
+    preview = f"key_{key_obj.id}_{key_obj.created_at.strftime('%Y%m%d')}"
     return APIKeyResponse(
         id=key_obj.id,
         name=key_obj.name,
@@ -105,7 +119,7 @@ async def revoke_api_key(
     db: AsyncSession = Depends(get_db)
 ):
     result = await db.execute(
-        select(APIKey).where(APIKey.id == key_id, APIKey.user_id == current_client.id)
+        select(APIKey).where(APIKey.id == key_id, APIKey.client_id == current_client.id)
     )
     key_obj = result.scalar_one_or_none()
     if not key_obj:

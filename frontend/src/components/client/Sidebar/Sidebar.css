@@ -1,0 +1,136 @@
+/* frontend/src/components/client/Sidebar/Sidebar.css */
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  width: 280px;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-color);
+  transform: translateX(-100%);
+  transition: transform var(--transition-normal);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar--open {
+  transform: translateX(0);
+}
+
+.sidebar-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  visibility: hidden;
+  transition: var(--transition-normal);
+  z-index: 999;
+}
+
+.sidebar-overlay--open {
+  opacity: 1;
+  visibility: visible;
+}
+
+.sidebar__header {
+  padding: var(--spacing-xl);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sidebar__logo {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.sidebar__logo-icon {
+  color: var(--accent-info);
+}
+
+.sidebar__logo h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.sidebar__logo p {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+/* Toggle button - ALWAYS VISIBLE */
+.sidebar__close {
+  display: flex !important; /* Force show */
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  transition: var(--transition-fast);
+  width: 32px;
+  height: 32px;
+}
+
+.sidebar__close:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.sidebar__nav {
+  flex: 1;
+  padding: var(--spacing-lg) 0;
+}
+
+.sidebar__nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md) var(--spacing-xl);
+  color: var(--text-secondary);
+  transition: var(--transition-fast);
+  position: relative;
+}
+
+.sidebar__nav-item:hover {
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--text-primary);
+}
+
+.sidebar__nav-item--active {
+  color: var(--accent-info);
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.sidebar__nav-item--active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--accent-info);
+}
+
+@media (min-width: 1024px) {
+  .sidebar {
+    transform: translateX(0);
+  }
+  
+  .sidebar-overlay {
+    display: none;
+  }
+  
+  /* Keep the close button visible on desktop too */
+  .sidebar__close {
+    display: flex !important;
+  }
+}

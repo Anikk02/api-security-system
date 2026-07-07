@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Request, status, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
@@ -20,6 +20,9 @@ from app.schemas.auth import (
     ChangePasswordRequest,
     ChangePasswordResponse,
     AuthError,
+    ChangeEmailRequest,
+    ChangeEmailResponse,
+    ChangeEmailConfirmRequest,
 )
 from app.authentication.service import (
     register_client,
@@ -29,6 +32,8 @@ from app.authentication.service import (
     reset_password,
     logout_client,
     logout_all_devices,
+    request_email_change,
+    confirm_email_change,
 )
 from app.authentication.dependencies import (
     get_current_client,
@@ -44,7 +49,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/api/auth",
-    tags=["Authentication"],
+    tags=["Authentication", "control"],
     responses={
         401: {"model": AuthError, "description": "Unauthorized"},
         403: {"model": AuthError, "description": "Forbidden"},
@@ -212,7 +217,6 @@ async def change_pw(
     current_client: Client = Depends(require_active_client),
 ):
     """Change password while logged in."""
-    from fastapi import HTTPException
     
     # Verify current password
     if not verify_password(data.current_password, current_client.password_hash):
@@ -228,3 +232,18 @@ async def change_pw(
     logger.info(f"Password changed for client: {current_client.email}")
     
     return ChangePasswordResponse(message="Password changed successfully")
+
+@router.post("/change-email")
+async def change_email(
+    data: ChangeEmailRequest,
+    db: AsyncSession = Depends(get_db),
+    current_client: Client = Depends(require_active_client),
+):
+    return await request_email_change(db, current_client, data)
+
+@router.post("/confirm-email")
+async def confirm_email(
+    data: ChangeEmailConfirmRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    return await confirm_email_change(db, data)

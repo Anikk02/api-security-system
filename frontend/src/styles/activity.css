@@ -1,0 +1,123 @@
+/* frontend/src/styles/activity.css */
+.activity-feed {
+  height: 100%;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  padding: 14px 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.activity-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  flex-shrink: 0;
+}
+
+.activity-header h4 {
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0;
+}
+
+.activity-dot {
+  color: #00ff88;
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.2; }
+}
+
+.feed-content {
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-width: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.feed-content::-webkit-scrollbar {
+  display: none;
+}
+
+.feed-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border-left: 2px solid transparent;
+  transition: all 0.3s ease;
+}
+
+.feed-item.status-allowed {
+  border-left-color: #2ecc71;
+}
+
+.feed-item.status-blocked {
+  border-left-color: #e74c3c;
+}
+
+.feed-item.status-challenge {
+  border-left-color: #f1c40f;
+}
+
+.feed-time {
+  color: rgba(255, 255, 255, 0.2);
+  font-size: 8px;
+  min-width: 40px;
+  font-family: monospace;
+}
+
+.feed-status-icon {
+  font-size: 10px;
+}
+
+.feed-status {
+  font-size: 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 1px 4px;
+  border-radius: 2px;
+  min-width: 40px;
+  text-align: center;
+}
+
+.feed-item.status-allowed .feed-status {
+  color: #2ecc71;
+  background: rgba(46, 204, 113, 0.1);
+}
+
+.feed-item.status-blocked .feed-status {
+  color: #e74c3c;
+  background: rgba(231, 76, 60, 0.1);
+}
+
+.feed-item.status-challenge .feed-status {
+  color: #f1c40f;
+  background: rgba(241, 196, 15, 0.1);
+}
+
+.feed-endpoint {
+  color: rgba(255, 255, 255, 0.4);
+  flex: 1;
+  font-size: 9px;
+}
+
+.feed-ip {
+  color: rgba(255, 255, 255, 0.15);
+  font-size: 8px;
+  font-family: monospace;
+}

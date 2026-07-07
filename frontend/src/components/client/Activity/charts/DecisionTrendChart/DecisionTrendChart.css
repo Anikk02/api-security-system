@@ -1,0 +1,47 @@
+.decision-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  transition: var(--transition-normal);
+}
+
+/* 🔴 Attack Mode */
+.decision-card.attack-mode {
+  border-color: #ef4444;
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
+}
+
+/* Title */
+.decision-title {
+  margin-bottom: 1rem;
+  font-size: 1.2rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Attack Badge */
+.attack-badge {
+  background: #ef4444;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  color: white;
+  animation: pulse 1.5s infinite;
+}
+
+/* Empty */
+.decision-empty {
+  color: var(--text-secondary);
+}
+
+/* Pulse animation */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}

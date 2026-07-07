@@ -2,7 +2,7 @@ import logging
 from concurrent_log_handler import ConcurrentRotatingFileHandler
 import os
 
-LOG_DIR = "logs"
+LOG_DIR = "logs_data"
 LOG_FILE = os.path.join(LOG_DIR, "app.log")
 
 os.makedirs(LOG_DIR, exist_ok=True)
@@ -11,7 +11,6 @@ os.makedirs(LOG_DIR, exist_ok=True)
 def setup_logging():
     root_logger = logging.getLogger()
 
-    # 🔥 Make this configurable (important for debugging vs production)
     log_level = os.getenv("LOG_LEVEL", "INFO").upper()
     root_logger.setLevel(log_level)
 

@@ -207,4 +207,4 @@ marimo/_lsp/
 __marimo__/
 
 apisystem
-logs/
+logs_data/
