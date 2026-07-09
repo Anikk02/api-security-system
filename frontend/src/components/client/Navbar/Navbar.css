@@ -16,7 +16,7 @@
 }
 
 /* ADD THIS - Navbar adjustment when sidebar is open */
-@media (min-width: 1024px) {
+@media (min-width: 1200px) {
   .navbar--sidebar-open {
     margin-left: 280px;
     width: calc(100% - 280px);
@@ -34,17 +34,7 @@
   gap: var(--spacing-lg);
 }
 
-.navbar__menu-btn {
-  display: none;
-  color: var(--text-primary);
-  padding: var(--spacing-sm);
-  border-radius: var(--radius-md);
-  transition: var(--transition-fast);
-}
 
-.navbar__menu-btn:hover {
-  background: var(--bg-tertiary);
-}
 
 .navbar__logo {
   display: flex;
@@ -123,15 +113,11 @@
 }
 
 /* ADD THIS - Reset navbar on mobile */
-@media (max-width: 1024px) {
+@media (max-width: 1199px) {
   .navbar {
     padding: 0 var(--spacing-md);
     margin-left: 0 !important;
     width: 100% !important;
-  }
-  
-  .navbar__menu-btn {
-    display: block;
   }
   
   .navbar__logo-text {
@@ -151,7 +137,7 @@
   }
 }
 
-/* frontend/src/components/client/Navbar/Navbar.css - Add this */
+/* Menu button - single consolidated rule, visible at all screen sizes */
 .navbar__menu-btn {
   display: flex;
   align-items: center;
@@ -170,11 +156,6 @@
 .navbar__menu-btn:hover {
   color: #ffffff;
   background: rgba(255, 255, 255, 0.05);
-}
-
-/* Show menu button on all screen sizes */
-.navbar__menu-btn {
-  display: flex !important;
 }
 
 /* On mobile, adjust spacing */
