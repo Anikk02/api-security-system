@@ -23,7 +23,6 @@ from app.db.models import (
 from app.api.routes import dashboard
 from app.api.routes.activity import router as activity_router
 from app.api.routes.settings import router as settings_router
-from app.api.routes.usage import router as usage_router
 from app.api.routes.api_keys import router as api_router
 from app.api.routes.developer import router as developer_router   
 from app.authentication import admin_routes
@@ -70,7 +69,6 @@ app.include_router(auth_routes.router)
 app.include_router(dashboard.router)
 app.include_router(activity_router)
 app.include_router(api_router)
-app.include_router(usage_router)
 app.include_router(settings_router)
 app.include_router(developer_router)   
 app.include_router(admin_routes.router)                          
