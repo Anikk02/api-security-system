@@ -1,170 +1,244 @@
+// src/pages/client/Dashboard/Dashboard.jsx
 import React, { useState, useEffect, useCallback } from 'react';
-import { Activity, AlertTriangle, Users, Zap } from 'lucide-react';
-import StatCard from '../../../components/client/StatCard/StatCard';
-import TrafficChart from '../../../components/client/TrafficChart/TrafficChart';
-import DecisionTable from '../../../components/client/DecisionTable/DecisionTable';
-import ViolatorMap from '../../../components/client/ViolatorMap/ViolatorMap';
-import RiskChart from '../../../components/client/RiskChart/RiskChart';
+import { Shield, RefreshCw, AlertTriangle, Bell, Activity } from 'lucide-react';
+import StatsCards from '../../../components/client/dashboard/StatsCards/StatsCards';
+import AttackActivityChart from '../../../components/client/dashboard/AttackActivityChart/AttackActivityChart';
+import RiskBreakdown from '../../../components/client/dashboard/RiskBreakdown/RiskBreakdown';
+import MostTriggeredPolicies from '../../../components/client/dashboard/MostTriggeredPolicies/MostTriggeredPolicies';
+import SuspiciousUsers from '../../../components/client/dashboard/SuspiciousUsers/SuspiciousUsers';
+import RecentDecisions from '../../../components/client/dashboard/RecentDecisions/RecentDecisions';
+import RiskMetricsOverview from '../../../components/client/dashboard/RiskMetricsOverview/RiskMetricsOverview';
+import HelpSection from '../../../components/client/dashboard/HelpSection/HelpSection';
 import { dashboardService } from '../../../services/client/dashboardService';
-import { useWebSocket } from '../../../hooks/client/useWebSocket';
 import toast from 'react-hot-toast';
 import './Dashboard.css';
 
 const Dashboard = () => {
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(new Date());
   const [stats, setStats] = useState(null);
   const [trafficData, setTrafficData] = useState([]);
-  const [users, setUsers] = useState([]);
+  const [suspiciousUsers, setSuspiciousUsers] = useState([]);
   const [alerts, setAlerts] = useState([]);
-  const [selectedViolator, setSelectedViolator] = useState(null);
-  const [loading, setLoading] = useState(true);
-  
-  // WebSocket for real-time updates
-  const { data: wsData, isConnected } = useWebSocket(['new_alert', 'stats_update']);
-  
+  const [logs, setLogs] = useState([]);
+  const [riskMetrics, setRiskMetrics] = useState(null);
+  const [policies, setPolicies] = useState([]);
+  const [timeframe, setTimeframe] = useState('15m');
+  const [error, setError] = useState(null);
+
   // Single function to load all dashboard data
-  const loadDashboardData = useCallback(async () => {
+  const loadDashboardData = useCallback(async (silent = false) => {
+    if (!silent) {
+      setLoading(true);
+    } else {
+      setRefreshing(true);
+    }
+    setError(null);
+
     try {
-      // Load all data in parallel but with controlled concurrency
-      const [statsData, traffic, suspiciousUsers, recentAlerts] = await Promise.all([
+      const [statsData, trafficData, usersData, alertsData, logsData, policiesData] = await Promise.all([
         dashboardService.getStats(),
-        dashboardService.getTrafficData('15m'),
-        dashboardService.getSuspiciousUsers(20),
-        dashboardService.getRecentAlerts(5)
+        dashboardService.getTrafficData(timeframe),
+        dashboardService.getSuspiciousUsers(5),
+        dashboardService.getRecentAlerts(8),
+        dashboardService.getDecisionLogs(1, 8),
+        dashboardService.getTopPolicies(5)
       ]);
-      
+
       setStats(statsData);
-      setTrafficData(traffic);
-      setUsers(suspiciousUsers);
-      setAlerts(recentAlerts);
+      setTrafficData(trafficData);
+      setSuspiciousUsers(usersData);
+      setAlerts(alertsData);
+      setLogs(logsData);
+      setPolicies(policiesData);
+
+      // Use backend data directly instead of recalculating from traffic data
+      setRiskMetrics({
+        avgRiskScore: statsData.avgRiskScore,
+        riskTrend: statsData.riskTrend,
+        activeUsers15m: statsData.activeUsers15m,
+        activeUsersTrend: statsData.activeUsersTrend,
+        totalRequests: statsData.totalRequests,
+        totalRequestsTrend: statsData.totalRequestsTrend,
+        blockedCount: statsData.blockedCount,
+        blockedTrend: statsData.blockedTrend,
+        throttledCount: statsData.throttledCount,
+        throttledTrend: statsData.throttledTrend,
+        avgLatency: statsData.avgLatency,
+        latencyTrend: statsData.latencyTrend
+      });
+
+      setLastUpdated(new Date());
     } catch (error) {
-      console.error('Failed to load dashboard data:', error);
+      console.error('Error fetching dashboard data:', error);
+      setError('Failed to load dashboard data. Please try again.');
       toast.error('Failed to load dashboard data');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  }, []);
-  
+  }, [timeframe]);
+
   // Initial load
   useEffect(() => {
     loadDashboardData();
   }, [loadDashboardData]);
-  
-  // Polling every 15 seconds (reduced frequency)
+
+  // Polling every 30 seconds
   useEffect(() => {
     const interval = setInterval(() => {
-      loadDashboardData();
-    }, 15000); // 15 seconds instead of multiple intervals
-    
+      loadDashboardData(true);
+    }, 30000);
+
     return () => clearInterval(interval);
   }, [loadDashboardData]);
-  
-  // Handle WebSocket updates (only for real-time pushes)
-  useEffect(() => {
-    if (wsData.stats_update) {
-      setStats(prev => ({ ...prev, ...wsData.stats_update }));
-    }
-    
-    if (wsData.new_alert) {
-      // Add new alert to the list
-      setAlerts(prev => [wsData.new_alert, ...prev].slice(0, 10));
-      toast.error(`New alert: ${wsData.new_alert.type} from ${wsData.new_alert.ip}`, {
-        duration: 5000,
-      });
-      // Refresh data to keep everything in sync
-      loadDashboardData();
-    }
-  }, [wsData, loadDashboardData]);
-  
-  const handleViolatorClick = (violator) => {
-    setSelectedViolator(violator);
-    toast.info(`Viewing details for ${violator.id}`, { duration: 3000 });
+
+  const handleRefresh = () => {
+    loadDashboardData(false);
   };
-  
-  const statCards = stats ? [
-    { title: 'Requests Per Second', value: stats.requestsPerSecond, trend: stats.requestsTrend, icon: Zap, color: 'info' },
-    { title: 'Violations Detected', value: stats.violationsDetected, trend: stats.violationsTrend, icon: AlertTriangle, color: 'danger' },
-    { title: 'Suspicious Sessions', value: stats.suspiciousSessions, trend: stats.sessionsTrend, icon: Users, color: 'warning' },
+
+  const handleTimeframeChange = (newTimeframe) => {
+    setTimeframe(newTimeframe);
+  };
+
+  const chartData = trafficData.map(point => ({
+    time: point.time,
+    requests: point.requests,
+    anomalies: point.anomalies,
+    blocked: point.blocked
+  }));
+
+  const riskBreakdownData = stats?.trafficComposition && stats.totalRequests ? [
+    {
+      name: 'Allowed',
+      value: Math.round(stats.totalRequests * (stats.trafficComposition.normal / 100)),
+      color: '#34a853'
+    },
+    {
+      name: 'Suspicious',
+      value: Math.round(stats.totalRequests * (stats.trafficComposition.suspicious / 100)),
+      color: '#fbbc04'
+    },
+    {
+      name: 'High Risk',
+      value: Math.round(stats.totalRequests * (stats.trafficComposition.high_risk / 100)),
+      color: '#ea4335'
+    }
   ] : [];
-  
+
   if (loading) {
     return (
-      <div className="dashboard">
-        <div className="dashboard__header">
-          <h1 className="dashboard__title">Security Dashboard</h1>
-          <div className="dashboard__status dashboard__status--connected">
-            <div className="dashboard__status-dot" />
-            <span>Loading...</span>
-          </div>
+      <div className="loading-container">
+        <div className="loading-spinner">
+          <Shield size={48} className="loading-icon" />
         </div>
-        <div className="dashboard-loading">
-          <div className="dashboard-loading__spinner"></div>
-          <p>Loading security data...</p>
-        </div>
+        <p className="loading-text">Loading security dashboard...</p>
       </div>
     );
   }
-  
+
   return (
     <div className="dashboard">
-      <div className="dashboard__header">
-        <h1 className="dashboard__title">Security Dashboard</h1>
-        <div className={`dashboard__status ${isConnected ? 'dashboard__status--connected' : 'dashboard__status--disconnected'}`}>
-          <div className="dashboard__status-dot" />
-          <span>{isConnected ? 'Live Monitoring Active' : 'Connecting...'}</span>
+      {/* Dashboard Header */}
+      <div className="dashboard-header">
+        <div className="header-left">
+          <div className="header-icon">
+            <Shield size={28} />
+          </div>
+          <div>
+            <h1 className="dashboard-title">TriAnSec Security Dashboard</h1>
+            <p className="dashboard-subtitle">Behavior-based Middleware - Real-time API security overview</p>
+          </div>
+        </div>
+        <div className="header-right">
+          <div className="header-status">
+            <span className="status-indicator">
+              <Activity size={16} />
+              <span className="status-text">Live</span>
+            </span>
+            <span className="last-updated">
+              Last updated: {lastUpdated.toLocaleTimeString()}
+            </span>
+          </div>
+          <button
+            className="refresh-btn"
+            onClick={handleRefresh}
+            disabled={refreshing}
+          >
+            <RefreshCw size={18} className={refreshing ? 'spinning' : ''} />
+            {refreshing ? 'Refreshing...' : 'Refresh'}
+          </button>
         </div>
       </div>
-      
-      <div className="dashboard__stats">
-        {statCards.map((card, index) => (
-          <StatCard key={index} {...card} />
-        ))}
-      </div>
-      
-      {/* Live Violator Map */}
-      <ViolatorMap 
-        violators={users}
-        onViolatorClick={handleViolatorClick}
-      />
-      
-      <div className="dashboard__charts">
-        <TrafficChart data={trafficData} />
-      </div>
-      
-      <div className="dashboard__risk-charts">
-        <RiskChart type="pie" title="Risk Distribution" height={350} />
-        <RiskChart type="radar" title="Risk Metrics Analysis" height={350} />
+
+      {error && (
+        <div className="error-banner">
+          <AlertTriangle size={20} />
+          <span>{error}</span>
+          <button onClick={handleRefresh} className="error-retry-btn">
+            Retry
+          </button>
+        </div>
+      )}
+
+      {/* Stats Cards */}
+      {stats && <StatsCards stats={stats} />}
+
+      {/* Main Grid */}
+      <div className="dashboard-grid">
+        <div className="grid-left">
+          <AttackActivityChart
+            data={chartData}
+            loading={loading}
+            timeframe={timeframe}
+            onTimeframeChange={handleTimeframeChange}
+          />
+          <div className="two-column-grid">
+            <RiskBreakdown data={riskBreakdownData} />
+            <MostTriggeredPolicies policies={policies} />
+          </div>
+        </div>
+        <div className="grid-right">
+          <SuspiciousUsers users={suspiciousUsers} />
+          <RecentDecisions logs={logs} />
+        </div>
       </div>
 
-      {/* Recent Alerts */}
-      <div className="dashboard__alerts">
-        <h3 className="dashboard__alerts-title">Recent Alerts</h3>
+      {/* Risk Metrics Overview */}
+      {riskMetrics && <RiskMetricsOverview metrics={riskMetrics} />}
 
-        <div className="dashboard__alerts-list">
-          {alerts.length === 0 ? (
-            <p className="dashboard__alerts-empty">No recent alerts</p>
-          ) : (
-            alerts.map(alert => (
-              <div key={alert.id} className="dashboard__alert-card">
-                <div className="dashboard__alert-header">
-                  <span className="dashboard__alert-type">{alert.type}</span>
-                  <span className="dashboard__alert-score">{alert.score}</span>
-                </div>
-
-                <div className="dashboard__alert-body">
-                  <span className="dashboard__alert-ip">{alert.ip}</span>
-                  <span className="dashboard__alert-time">
-                    {new Date(alert.timestamp).toLocaleTimeString()}
-                  </span>
-                </div>
+      {/* Recent Alerts Section */}
+      {alerts.length > 0 && (
+        <div className="alerts-section">
+          <div className="alerts-header">
+            <h3 className="alerts-title">
+              <Bell size={18} />
+              Recent Alerts
+            </h3>
+            <span className="alerts-count">{alerts.length} new</span>
+          </div>
+          <div className="alerts-list">
+            {alerts.slice(0, 5).map((alert, index) => (
+              <div key={alert.id || index} className="alert-item">
+                <span className={`alert-severity ${alert.type?.toLowerCase()?.replace(' ', '') || 'info'}`}>
+                  {alert.type || 'Info'}
+                </span>
+                <span className="alert-message">
+                  {alert.ip && <span className="alert-ip">{alert.ip}</span>}
+                  Score: {alert.score?.toFixed(2) || 'N/A'}
+                </span>
+                <span className="alert-time">
+                  {alert.timestamp?.toLocaleTimeString() || 'Just now'}
+                </span>
               </div>
-            ))
-          )}
+            ))}
+          </div>
         </div>
-      </div>
-      
-      <div className="dashboard__table">
-        <DecisionTable data={users} title="Suspicious Users" />
-      </div>
+      )}
+
+      {/* Help Section */}
+      <HelpSection />
     </div>
   );
 };
