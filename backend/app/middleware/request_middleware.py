@@ -30,12 +30,14 @@ CONTROL_PLANE_PREFIXES = [
     "/api/dashboard/traffic",
     "/api/dashboard/suspicious-users",
     "/api/dashboard/logs",
-    "/api/developer",
 ]
 
 # Initialize rate limiter
 minute_limiter = SlidingWindowRateLimiter(max_requests=60, window_seconds=60)
 strict_limiter = SlidingWindowRateLimiter(max_requests=30, window_seconds=60)
+
+# Block duration threshold (6 hours)
+BLOCK_DURATION_6H = 21600  # 6 hours in seconds
 
 
 class RequestMiddleware(BaseHTTPMiddleware):
@@ -57,6 +59,7 @@ class RequestMiddleware(BaseHTTPMiddleware):
         
         # Detailed timing tracking
         timings = {}
+        fast_path_start = start_time
 
         logger.info(
             f"{request.method} {request.url.path} | "
@@ -74,7 +77,6 @@ class RequestMiddleware(BaseHTTPMiddleware):
                 response.headers["X-Request-UUID"] = request.state.request_uuid
                 response.headers["X-Process-Time"] = f"{timings['total']:.4f}"
                 
-                # Log bypass with timing
                 logger.info(
                     f"BYPASS: {request.url.path} | "
                     f"total={timings['total']:.3f}s | "
@@ -98,7 +100,7 @@ class RequestMiddleware(BaseHTTPMiddleware):
 
             # ── 2. FAST-PATH DECISION ─────────────────────────────────────────
             t0 = time.time()
-            blocked, risk_score, throttled = await StateManager.get_decision_signals(
+            blocked, risk_score, throttled, block_duration = await StateManager.get_decision_signals(
                 identity,
                 identity.behavioral_fingerprint
             )
@@ -128,9 +130,48 @@ class RequestMiddleware(BaseHTTPMiddleware):
             # silently falling through to normal flow.
             if action == "throttle":
                 throttled = True
+            
+            # Calculate fast path latency before handling response
+            fast_path_end = time.time()
+            fast_path_latency_ms = (fast_path_end - fast_path_start) * 1000
 
             # ── 5. BLOCK FAST PATH ────────────────────────────────────────────
             if action == "block":
+                # Check if blocked for more than 6 hours (max block - 12 hours)
+                # If remaining block duration > 6 hours, this is a max block
+                # Skip ALL processing for max-blocked users
+                if block_duration and block_duration >= BLOCK_DURATION_6H:
+                    logger.info(
+                        f"🚫 MAX_BLOCK_SKIP: user={identity.identity_id} | "
+                        f"remaining={block_duration}s ({block_duration/3600:.1f}h) | "
+                        f"Skipping ALL processing"
+                    )
+                    
+                    response = JSONResponse(
+                        status_code=429,
+                        content={
+                            "detail": "Identity blocked for 12 hrs due to policy violation",
+                            "request_uuid": request.state.request_uuid,
+                        },
+                        headers={
+                            "X-RateLimit-Reset": "blocked",
+                            "Retry-After": "43200",
+                        }
+                    )
+                    
+                    set_user_cookie_if_needed(request, response)
+                    timings['total'] = time.time() - start_time
+                    response.headers["X-Process-Time"] = f"{timings['total']:.4f}"
+                    
+                    logger.info(
+                        f"MAX_BLOCK_RESPONSE: user={identity.identity_id} | "
+                        f"remaining={block_duration}s | "
+                        f"total={timings['total']:.3f}s | "
+                        f"req_uuid={request.state.request_uuid}"
+                    )
+                    return response
+                
+                # Normal block (less than 6 hours) - process as usual
                 asyncio.ensure_future(
                     run_analysis_pipeline(
                         identity=identity,
@@ -140,6 +181,7 @@ class RequestMiddleware(BaseHTTPMiddleware):
                         label=label,
                         fast_risk_score=risk_score,
                         fast_action=action,
+                        latency_ms=fast_path_latency_ms,
                     )
                 )
 
@@ -156,17 +198,15 @@ class RequestMiddleware(BaseHTTPMiddleware):
                 )
                 
                 set_user_cookie_if_needed(request, response)
-                
                 timings['total'] = time.time() - start_time
                 response.headers["X-Process-Time"] = f"{timings['total']:.4f}"
                 
-                # Log block with detailed timings
                 logger.info(
                     f"BLOCK: user={identity.identity_id} | "
+                    f"remaining={block_duration}s | "
                     f"total={timings['total']:.3f}s | "
                     f"identity={timings['identity_resolution']:.3f}s | "
                     f"redis={timings['redis_decision']:.3f}s | "
-                    f"timings={timings} | "
                     f"req_uuid={request.state.request_uuid}"
                 )
                 
@@ -190,6 +230,7 @@ class RequestMiddleware(BaseHTTPMiddleware):
                         label=label,
                         fast_risk_score=risk_score,
                         fast_action=action,
+                        latency_ms=fast_path_latency_ms,
                     )
                 )
 
@@ -212,18 +253,15 @@ class RequestMiddleware(BaseHTTPMiddleware):
                 )
                 
                 set_user_cookie_if_needed(request, response)
-                
                 timings['total'] = time.time() - start_time
                 response.headers["X-Process-Time"] = f"{timings['total']:.4f}"
                 
-                # Log rate limit with detailed timings
                 logger.info(
                     f"RATE_LIMIT: user={identity.identity_id} | "
                     f"total={timings['total']:.3f}s | "
                     f"identity={timings['identity_resolution']:.3f}s | "
                     f"redis={timings['redis_decision']:.3f}s | "
                     f"rate_limit={timings['rate_limit']:.3f}s | "
-                    f"timings={timings} | "
                     f"req_uuid={request.state.request_uuid}"
                 )
                 
@@ -252,21 +290,19 @@ class RequestMiddleware(BaseHTTPMiddleware):
                         label=label,
                         fast_risk_score=risk_score,
                         fast_action=action,
+                        latency_ms=fast_path_latency_ms,
                     )
                 )
                 
                 set_user_cookie_if_needed(request, response)
-                
                 timings['total'] = process_time
                 
-                # Log throttled with detailed timings
                 logger.info(
                     f"THROTTLED: user={identity.identity_id} | "
                     f"total={timings['total']:.3f}s | "
                     f"identity={timings['identity_resolution']:.3f}s | "
                     f"redis={timings['redis_decision']:.3f}s | "
                     f"call_next={timings['call_next']:.3f}s | "
-                    f"timings={timings} | "
                     f"req_uuid={request.state.request_uuid}"
                 )
                 
@@ -292,12 +328,12 @@ class RequestMiddleware(BaseHTTPMiddleware):
                     label=label,
                     fast_risk_score=risk_score,
                     fast_action=action,
+                    latency_ms=fast_path_latency_ms,
                 )
             )
 
             timings['total'] = process_time
             
-            # Log normal flow with detailed timings
             logger.info(
                 f"NORMAL: user={identity.identity_id} | action={action} | "
                 f"status={response.status_code} | "
@@ -306,7 +342,6 @@ class RequestMiddleware(BaseHTTPMiddleware):
                 f"redis={timings['redis_decision']:.3f}s | "
                 f"rate_limit={timings['rate_limit']:.3f}s | "
                 f"call_next={timings['call_next']:.3f}s | "
-                f"timings={timings} | "
                 f"req_uuid={request.state.request_uuid}"
             )
 

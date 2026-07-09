@@ -42,6 +42,12 @@ class DecisionLog(Base):
     explanation = Column(Text, nullable=True)
     explanation_json = Column(JSONB, nullable=True)
 
+    # # ============================
+    # ⏱️ Performance
+    # ============================
+    latency_ms = Column(Float, nullable=True)  # Fast-path latency in milliseconds
+
+
     # ============================
     # ⏱️ Timestamp
     # ============================
