@@ -8,7 +8,6 @@ import {
   Settings, 
   Shield,
   Activity,
-  BarChart3,
   KeyRound,
   X
 } from 'lucide-react';
@@ -20,14 +19,12 @@ const Sidebar = ({ isOpen, onClose }) => {
     { path: '/logs', icon: FileText, label: 'Logs' },
     { path: '/users', icon: Users, label: 'Users' },
     { path: '/activity', icon: Activity, label: 'Activity' },
-    { path: '/usage', icon: BarChart3, label: 'Usage'},
     { path: '/api-keys', icon: KeyRound, label: 'API Keys' },
     { path: '/settings', icon: Settings, label: 'Settings' },
   ];
 
   return (
     <>
-      {/* Overlay - only on mobile */}
       <div 
         className={`sidebar-overlay ${isOpen ? 'sidebar-overlay--open' : ''}`} 
         onClick={onClose} 
@@ -36,20 +33,19 @@ const Sidebar = ({ isOpen, onClose }) => {
       <aside className={`sidebar ${isOpen ? 'sidebar--open' : ''}`}>
         <div className="sidebar__header">
           <div className="sidebar__logo">
-            <Shield size={32} className="sidebar__logo-icon" />
-            <div>
+            <Shield size={24} className="sidebar__logo-icon" />
+            <div className="sidebar__logo-text">
               <h2>TriAnSec</h2>
               <p>API Security Layer</p>
             </div>
           </div>
 
-          {/* Close button - ALWAYS VISIBLE on both desktop and mobile */}
           <button className="sidebar__close" onClick={onClose}>
-            <X size={24} />
+            <X size={16} />
           </button>
         </div>
 
-        <nav className="sidebar__nav" aria-label="Main navigation">
+        <nav className="sidebar__nav">
           {menuItems.map((item) => (
             <NavLink
               key={item.path}
@@ -59,7 +55,6 @@ const Sidebar = ({ isOpen, onClose }) => {
                 `sidebar__nav-item ${isActive ? 'sidebar__nav-item--active' : ''}`
               }
               onClick={() => {
-                // Only close on mobile
                 if (window.innerWidth <= 768) {
                   onClose();
                 }
@@ -70,6 +65,10 @@ const Sidebar = ({ isOpen, onClose }) => {
             </NavLink>
           ))}
         </nav>
+
+        <div className="sidebar__footer">
+          <p>TriAnSec v2.0 • Secure</p>
+        </div>
       </aside>
     </>
   );
