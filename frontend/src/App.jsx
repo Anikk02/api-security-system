@@ -11,7 +11,6 @@ import Logs from './pages/client/Logs/Logs';
 import Users from './pages/client/User/User';
 import SettingsPage from './pages/client/settings/SettingsPage';
 import ActivityPage from './pages/client/activity/ActivityPage';
-import UsagePage from './pages/client/Usage/UsagePage';
 import APIKeys from './pages/client/APIKeys/APIKeys';
 
 // 🔐 Auth Pages with Background
@@ -113,7 +112,6 @@ const App = () => {
               <Route path="activity" element={<ActivityPage />} />
               <Route path="api-keys" element={<APIKeys />} />
               <Route path="settings" element={<SettingsPage />} />
-              <Route path="usage" element={<UsagePage />} />
             </Route>
           </Route>
 
