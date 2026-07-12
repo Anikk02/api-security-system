@@ -24,8 +24,6 @@ from app.risk.risk_engine import get_adaptive_thresholds
 from app.state.state_manager import StateManager
 from app.authentication.dependencies import require_active_client
 
-from app.authentication.dependencies import require_active_client
-
 logger = logging.getLogger(__name__)
 
 router = APIRouter(
