@@ -38,36 +38,56 @@ class StateManager:
         pipe = redis_client.pipeline()
 
         pipe.exists(f"{base}:blocked")
+        pipe.ttl(f"{base}:blocked")
         pipe.get(f"{base}:risk_score")
         pipe.exists(f"{base}:throttled")
 
         # IP Block
         if ip:
             pipe.exists(f"ip:{ip}:blocked")
+            pipe.ttl(f"ip:{ip}:blocked")
 
         # Fingerprint Block
         if fingerprint:
             pipe.exists(f"fp:{fingerprint}:blocked")
+            pipe.ttl(f"fp:{fingerprint}:blocked")
             pipe.get(f"rep:fp:{fingerprint}")
 
         try:
             results = await pipe.execute()
 
-            blocked = bool(results[0])
-            risk_raw = results[1]
-            throttled = bool(results[2])
+            idx = 0
 
-            idx = 3
+            blocked = bool(results[idx])
+            idx += 1
+
+            identity_block_ttl = results[idx] if results[idx] and results[idx] > 0 else 0
+            idx += 1
+
+            risk_raw = results[idx]
+            idx += 1
+
+            throttled = bool(results[idx])
+            idx += 1
+
+            # IP BLOCK
             ip_blocked = False
-            fp_blocked = False
-            fp_rep = 0.0
+            ip_block_duration = 0
 
             if ip:
                 ip_blocked = bool(results[idx])
                 idx += 1
-
+                ip_block_duration = results[idx] if results[idx] > 0 else 0
+                idx += 1
+            
+            # Fingerprint block
+            fp_blocked = False
+            fp_block_duration = 0
+            fp_rep = 0.0
             if fingerprint:
                 fp_blocked = bool(results[idx])
+                idx += 1
+                fp_block_duration = results[idx] if results[idx] and results[idx] > 0 else 0
                 idx += 1
 
                 if len(results) > idx:
@@ -83,6 +103,10 @@ class StateManager:
 
             blocked = blocked or ip_blocked or fp_blocked
 
+            block_duration = None
+            if blocked:
+                block_duration = max(identity_block_ttl, ip_block_duration, fp_block_duration)
+
             risk_score = 0.0
             if risk_raw is not None:
                 try:
@@ -93,11 +117,11 @@ class StateManager:
 
             risk_score = min(1.0, risk_score + (fp_rep * 0.2))
 
-            return blocked, risk_score, throttled
+            return blocked, risk_score, throttled, block_duration
 
         except Exception as e:
             logger.error(f"get_decision_signals pipeline failed: {e}")
-            return False, 0.0, False
+            return False, 0.0, False, None
 
     # ─────────────────────────────────────────────────────────────
     # REQUEST TRACKING (aligned keys)

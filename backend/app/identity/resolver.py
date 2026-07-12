@@ -152,7 +152,7 @@ async def _get_or_create_user_identifier(
     """
     
     # ============================
-    # 🍪 PRIORITY 1: Cookie
+    # PRIORITY 1: Cookie
     # ============================
     cookie_value = request.cookies.get("X-TrianSec-User-ID")
     if cookie_value:
@@ -160,7 +160,7 @@ async def _get_or_create_user_identifier(
         return cookie_value, "cookie", True
     
     # ============================
-    # 🔑 PRIORITY 2: JWT Token
+    # PRIORITY 2: JWT Token
     # ============================
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
@@ -171,7 +171,7 @@ async def _get_or_create_user_identifier(
             return user_id, "jwt", True
     
     # ============================
-    # 🖐️ PRIORITY 3: IP + User-Agent Fingerprint
+    # PRIORITY 3: IP + User-Agent Fingerprint
     # ============================
     ip = request.client.host if request.client else "unknown"
     ua = request.headers.get("user-agent", "")
@@ -221,7 +221,7 @@ def _extract_user_id_from_jwt(token: str) -> Optional[str]:
 
 
 # ============================
-# 🧠 Anonymous Identity
+# Anonymous Identity
 # ============================
 def _generate_anonymous_fingerprint(ip: str, request: Request) -> str:
     if not ip:
@@ -235,26 +235,164 @@ def _generate_anonymous_fingerprint(ip: str, request: Request) -> str:
 
 
 # ============================
-# 🧠 Behavioral Fingerprint
+# Behavioral Fingerprint
 # ============================
 def _generate_behavioral_fingerprint(request: Request, identity: Identity) -> str:
-    ua = request.headers.get("user-agent", "")
-    accept_lang = request.headers.get("accept-language", "")
-    accept_enc = request.headers.get("accept-encoding", "")
-    path = request.url.path
-
-    # Strong anchor if API key exists
+    """
+    Generate a strong, unique behavioral fingerprint using real browser headers.
+    
+    Based on analysis of real browser requests (YouTube, etc.) these are the
+    headers that are actually sent and provide high uniqueness.
+    """
+    
+    # ── PRIMARY ANCHOR ──
+    # API Key provides tenant isolation
+    components = []
+    
     if identity.api_key:
         api_hash = hashlib.sha256(identity.api_key.encode()).hexdigest()
-        raw = f"{api_hash}:{ua}:{accept_lang}:{accept_enc}:{path}"
-    else:
-        raw = f"{ua}:{accept_lang}:{accept_enc}:{path}"
-
-    return hashlib.sha256(raw.encode()).hexdigest()
+        components.append(f"api:{api_hash}")
+    
+    # ── HIGH UNIQUENESS SIGNALS (Present in all browsers) ──
+    
+    # 1. User-Agent (always present)
+    ua = request.headers.get("user-agent", "")
+    if ua:
+        components.append(f"ua:{ua}")
+    
+    # 2. Accept-Language (always present)
+    accept_lang = request.headers.get("accept-language", "")
+    if accept_lang:
+        components.append(f"lang:{accept_lang}")
+    
+    # 3. Accept-Encoding (always present)
+    accept_enc = request.headers.get("accept-encoding", "")
+    if accept_enc:
+        components.append(f"enc:{accept_enc}")
+    
+    # 4. Accept (always present)
+    accept = request.headers.get("accept", "")
+    if accept:
+        components.append(f"accept:{accept}")
+    
+    # 5. Sec-Ch-Ua (Client Hints - browser brand & version)
+    sec_ch_ua = request.headers.get("sec-ch-ua", "")
+    if sec_ch_ua:
+        components.append(f"ch_ua:{sec_ch_ua}")
+    
+    # 6. Sec-Ch-Ua-Platform (OS)
+    sec_ch_ua_platform = request.headers.get("sec-ch-ua-platform", "")
+    if sec_ch_ua_platform:
+        components.append(f"ch_platform:{sec_ch_ua_platform}")
+    
+    # 7. Sec-Ch-Ua-Mobile (mobile flag)
+    sec_ch_ua_mobile = request.headers.get("sec-ch-ua-mobile", "")
+    if sec_ch_ua_mobile:
+        components.append(f"ch_mobile:{sec_ch_ua_mobile}")
+    
+    # 8. Sec-Fetch-* (modern browser signals)
+    sec_fetch_dest = request.headers.get("sec-fetch-dest", "")
+    if sec_fetch_dest:
+        components.append(f"fetch_dest:{sec_fetch_dest}")
+    
+    sec_fetch_mode = request.headers.get("sec-fetch-mode", "")
+    if sec_fetch_mode:
+        components.append(f"fetch_mode:{sec_fetch_mode}")
+    
+    sec_fetch_site = request.headers.get("sec-fetch-site", "")
+    if sec_fetch_site:
+        components.append(f"fetch_site:{sec_fetch_site}")
+    
+    # 9. Origin (often present)
+    origin = request.headers.get("origin", "")
+    if origin:
+        components.append(f"origin:{origin}")
+    
+    # 10. Referer (often present)
+    referer = request.headers.get("referer", "")
+    if referer:
+        components.append(f"referer:{referer}")
+    
+    # ── CUSTOM/ENHANCED SIGNALS (if available) ──
+    
+    # 11. DNT (Do Not Track)
+    dnt = request.headers.get("dnt", "")
+    if dnt:
+        components.append(f"dnt:{dnt}")
+    
+    # 12. Connection
+    connection = request.headers.get("connection", "")
+    if connection:
+        components.append(f"conn:{connection}")
+    
+    # 13. Cache-Control
+    cache_control = request.headers.get("cache-control", "")
+    if cache_control:
+        components.append(f"cache:{cache_control}")
+    
+    # 14. Sec-Ch-Ua-Platform-Version (OS version - high entropy)
+    sec_ch_ua_platform_version = request.headers.get("sec-ch-ua-platform-version", "")
+    if sec_ch_ua_platform_version:
+        components.append(f"ch_platform_version:{sec_ch_ua_platform_version}")
+    
+    # 15. Sec-Ch-Ua-Arch (CPU architecture)
+    sec_ch_ua_arch = request.headers.get("sec-ch-ua-arch", "")
+    if sec_ch_ua_arch:
+        components.append(f"ch_arch:{sec_ch_ua_arch}")
+    
+    # 16. Sec-Ch-Ua-Bitness (32/64 bit)
+    sec_ch_ua_bitness = request.headers.get("sec-ch-ua-bitness", "")
+    if sec_ch_ua_bitness:
+        components.append(f"ch_bitness:{sec_ch_ua_bitness}")
+    
+    # 17. Sec-Ch-Ua-Full-Version (exact version - high entropy)
+    sec_ch_ua_full_version = request.headers.get("sec-ch-ua-full-version", "")
+    if sec_ch_ua_full_version:
+        components.append(f"ch_full_version:{sec_ch_ua_full_version}")
+    
+    # 18. Sec-Ch-Ua-Model (device model - mobile)
+    sec_ch_ua_model = request.headers.get("sec-ch-ua-model", "")
+    if sec_ch_ua_model:
+        components.append(f"ch_model:{sec_ch_ua_model}")
+    
+    # 19. Custom headers (if your clients send them)
+    timezone = request.headers.get("x-timezone", "")
+    if timezone:
+        components.append(f"tz:{timezone}")
+    
+    screen_resolution = request.headers.get("x-screen-resolution", "")
+    if screen_resolution:
+        components.append(f"screen:{screen_resolution}")
+    
+    color_depth = request.headers.get("x-color-depth", "")
+    if color_depth:
+        components.append(f"color:{color_depth}")
+    
+    # ── IP (secondary signal for anonymous users) ──
+    # For API users with API keys, IP is less important
+    # For anonymous users, IP helps group requests
+    if identity.is_anonymous and identity.ip_address:
+        components.append(f"ip:{identity.ip_address}")
+    
+    # Filter empty strings
+    components = [c for c in components if c]
+    
+    # Join and hash
+    raw = "|".join(components)
+    fingerprint = hashlib.sha256(raw.encode()).hexdigest()
+    
+    logger.debug(
+        f"[FINGERPRINT] Components: {len(components)} | "
+        f"UA: {ua[:30] if ua else 'unknown'}... | "
+        f"Platform: {sec_ch_ua_platform or 'unknown'} | "
+        f"Fingerprint: {fingerprint[:16]}..."
+    )
+    
+    return fingerprint
 
 
 # ============================
-# 🍪 Cookie Helper (To be used in middleware/response)
+# Cookie Helper (To be used in middleware/response)
 # ============================
 def set_user_cookie_if_needed(request: Request, response: Response) -> None:
     """

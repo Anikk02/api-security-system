@@ -1,0 +1,191 @@
+/* src/components/client/dashboard/MostTriggeredPolicies/MostTriggeredPolicies.css */
+
+.policies-container {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 20px 14px;
+  border: 1px solid #e8eaed;
+  display: flex;
+  flex-direction: column;
+  min-height: 250px;
+  width: 100%;
+  box-sizing: border-box;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.policies-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a2332;
+  margin: 0 0 16px 0;
+  flex-shrink: 0;
+}
+
+.policies-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.no-data {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  color: #6b7a8f;
+  font-size: 14px;
+}
+
+.policies-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 4px;
+  min-height: 0;
+  overflow-x: hidden; /* 🔥 Prevent horizontal scroll */
+}
+
+.policies-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.policies-list::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 2px;
+}
+
+.policies-list::-webkit-scrollbar-thumb {
+  background: #c1c7cd;
+  border-radius: 2px;
+}
+
+.policies-list::-webkit-scrollbar-thumb:hover {
+  background: #a8b0b8;
+}
+
+.policy-item {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 8px 8px;
+  transition: background 0.2s;
+  flex-shrink: 0;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 72px;
+}
+
+.policy-item:hover {
+  background: #f1f3f4;
+}
+
+.policy-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px; /* 🔥 Reduced margin */
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+
+.policy-name {
+  display: flex;
+  align-items: center;
+  gap: 6px; /* 🔥 Reduced gap */
+  flex-wrap: nowrap;
+  flex: 1;
+  min-width: 0; /* 🔥 Allow shrinking */
+}
+
+.policy-icon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.policy-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #1a2332;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.policy-triggers {
+  font-size: 10px; /* 🔥 Reduced font size */
+  color: #6b7a8f;
+  white-space: nowrap;
+  margin: 0 0 4px 0;
+}
+
+.policy-risk {
+  font-size: 10px; /* 🔥 Reduced font size */
+  color: #6b7a8f;
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.policy-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 1px; /* 🔥 Reduced gap */
+}
+
+.stat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px; /* 🔥 Reduced gap */
+}
+
+.stat-label {
+  font-size: 9px; /* 🔥 Reduced font size */
+  font-weight: 500;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stat-label.allowed {
+  color: #34a853;
+}
+
+.stat-label.blocked {
+  color: #ea4335;
+}
+
+.stat-label.throttled {
+  color: #fbbc04;
+}
+
+.stat-percentage {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 9px; /* 🔥 Reduced font size */
+  font-weight: 600;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.stat-percentage.allowed {
+  color: #34a853;
+}
+
+.stat-percentage.blocked {
+  color: #ea4335;
+}
+
+.stat-percentage.throttled {
+  color: #fbbc04;
+}

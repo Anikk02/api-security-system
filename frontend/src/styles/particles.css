@@ -11,7 +11,7 @@
 
 .particle {
   position: absolute;
-  background: rgba(0, 255, 136, 0.4);
+  background: rgba(3, 237, 34, 0.4);
   border-radius: 50%;
-  box-shadow: 0 0 6px rgba(0, 255, 136, 0.2);
+  box-shadow: 0 0 6px rgba(5, 233, 127, 0.2);
 }

@@ -2,77 +2,246 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-lg);
+  padding: var(--spacing-lg);
+  background: var(--bg-primary);
+  min-height: calc(100vh - 64px);
 }
 
 /* Title */
-.activity-title {
-  font-size: 1.5rem;
-  font-weight: 600;
+.activity-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  margin-bottom: var(--spacing-md);
 }
 
-/* Grid layout */
+.activity-header h1 {
+  font-size: 1.875rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--accent-info), #7c3aed);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 0;
+}
+
+.activity-header p {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+/* ─── CARDS ───────────────────────────────────────────── */
+.activity-card {
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  border: 1px solid var(--border-color);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.activity-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent-info), #7c3aed, transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.activity-card:hover {
+  border-color: rgba(59, 130, 246, 0.2);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.activity-card:hover::before {
+  opacity: 1;
+}
+
+.activity-card-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-md);
+}
+
+/* ─── INSIGHTS GRID ────────────────────────────────────── */
+.activity-insights {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-lg);
+}
+
+/* ─── SUMMARY WIDGETS ────────────────────────────────── */
+.activity-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-lg);
+}
+
+/* ─── MAIN GRID ────────────────────────────────────────── */
 .activity-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--spacing-lg);
 }
 
-/* Responsive */
-@media (max-width: 900px) {
-  .activity-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* Error */
-.error-text {
-  color: var(--accent-danger);
-}
-
-.activity-insights {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--spacing-lg);
-  margin-bottom: var(--spacing-lg);
-}
-
-.activity-summary {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--spacing-lg);
-  margin-bottom: var(--spacing-lg);
-}
-
+/* ─── PATTERNS ──────────────────────────────────────────── */
 .activity-patterns {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--spacing-lg);
-  margin-top: var(--spacing-lg);
 }
 
-.activity-header {
-  margin-bottom: 20px;
+/* ─── ERROR ────────────────────────────────────────────── */
+.error-text {
+  color: var(--accent-danger);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-lg);
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: var(--radius-lg);
 }
 
-.activity-header h1 {
-  font-size: 24px;
-  font-weight: 600;
+/* ─── RESPONSIVE ────────────────────────────────────────── */
+
+/* Large screens */
+@media (max-width: 1200px) {
+  .activity-container {
+    padding: var(--spacing-md);
+  }
+  
+  .activity-summary {
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--spacing-md);
+  }
 }
 
-.activity-header p {
-  color: #888;
-  font-size: 14px;
+/* Tablet landscape */
+@media (max-width: 992px) {
+  .activity-container {
+    padding: var(--spacing-md);
+  }
+  
+  .activity-insights {
+    grid-template-columns: 1fr;
+  }
+  
+  .activity-summary {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  
+  .activity-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .activity-patterns {
+    grid-template-columns: 1fr;
+  }
+  
+  .activity-header h1 {
+    font-size: 1.5rem;
+  }
 }
 
-.activity-card {
-  background: #111;
-  border-radius: 12px;
-  padding: 16px;
-  border: 1px solid #222;
+/* Tablet portrait */
+@media (max-width: 768px) {
+  .activity-container {
+    padding: var(--spacing-sm);
+    gap: var(--spacing-md);
+  }
+  
+  .activity-summary {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-sm);
+  }
+  
+  .activity-insights {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-sm);
+  }
+  
+  .activity-grid {
+    gap: var(--spacing-sm);
+  }
+  
+  .activity-patterns {
+    gap: var(--spacing-sm);
+  }
+  
+  .activity-card {
+    padding: var(--spacing-md);
+  }
+  
+  .activity-header h1 {
+    font-size: 1.25rem;
+  }
+  
+  .activity-header p {
+    font-size: 0.8rem;
+  }
 }
 
-.activity-card-title {
-  font-size: 14px;
-  margin-bottom: 10px;
-  color: #ccc;
+/* Mobile */
+@media (max-width: 480px) {
+  .activity-container {
+    padding: var(--spacing-xs);
+    gap: var(--spacing-sm);
+  }
+  
+  .activity-card {
+    padding: var(--spacing-sm);
+    border-radius: var(--radius-md);
+  }
+  
+  .activity-card-title {
+    font-size: 0.65rem;
+    margin-bottom: var(--spacing-sm);
+  }
+  
+  .activity-header h1 {
+    font-size: 1.1rem;
+  }
+  
+  .activity-header p {
+    font-size: 0.7rem;
+  }
 }
+
+/* ─── ANIMATIONS ────────────────────────────────────────── */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out;
+}
+
+.animate-fade-in > * {
+  animation: fadeIn 0.4s ease-out forwards;
+  opacity: 0;
+}
+
+.animate-fade-in > *:nth-child(1) { animation-delay: 0.05s; }
+.animate-fade-in > *:nth-child(2) { animation-delay: 0.1s; }
+.animate-fade-in > *:nth-child(3) { animation-delay: 0.15s; }
+.animate-fade-in > *:nth-child(4) { animation-delay: 0.2s; }
+.animate-fade-in > *:nth-child(5) { animation-delay: 0.25s; }
+.animate-fade-in > *:nth-child(6) { animation-delay: 0.3s; }

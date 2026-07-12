@@ -1,0 +1,146 @@
+/* src/components/client/dashboard/RiskBreakdown/RiskBreakdown.css */
+.risk-breakdown-container {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 24px;
+  border: 1px solid #e8eaed;
+  min-height: 250px;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  box-sizing: border-box;
+  height: 100%;
+}
+
+.risk-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a2332;
+  margin: 0 0 16px 0;
+  flex-shrink: 0;
+}
+
+/* 🔥 NEW: No data styling */
+.no-data {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-height: 150px;
+  color: #f9fafc;
+  font-size: 14px;
+}
+
+.risk-content {
+  display: flex;
+  gap: 32px;
+  align-items: center;
+  flex: 1;
+}
+
+.chart-wrapper {
+  flex: 1;
+  min-width: 180px;
+  height: 220px;
+}
+
+.risk-summary {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.legend-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.legend-label {
+  font-size: 14px;
+  color: #f8f9fa;
+  flex: 1;
+}
+
+.legend-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #f9fafc;
+}
+
+.summary-divider {
+  height: 1px;
+  background: #e8eaed;
+  margin: 4px 0;
+}
+
+.summary-total {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+}
+
+.summary-label {
+  font-size: 14px;
+  color: #6b7a8f;
+}
+
+.summary-value {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a2332;
+}
+
+.tooltip {
+  background: #ffffff;
+  border: 1px solid #e8eaed;
+  border-radius: 6px;
+  padding: 8px 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tooltip-name {
+  font-weight: 500;
+  color: #1a2332;
+  font-size: 13px;
+}
+
+.tooltip-value {
+  font-size: 13px;
+  color: #6b7a8f;
+}
+
+@media (max-width: 768px) {
+  .risk-content {
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .risk-summary {
+    width: 100%;
+  }
+
+  .chart-wrapper {
+    width: 100%;
+    max-width: 280px;
+    margin: 0 auto;
+  }
+}

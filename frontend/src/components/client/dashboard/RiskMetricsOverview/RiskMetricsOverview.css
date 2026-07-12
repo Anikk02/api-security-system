@@ -1,0 +1,107 @@
+/* src/components/client/dashboard/RiskMetricsOverview/RiskMetricsOverview.css */
+.metrics-container {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 24px;
+  border: 1px solid #e8eaed;
+  margin-bottom: 24px;
+}
+
+.metrics-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #f0f1f4;
+  margin: 0 0 16px 0;
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 16px;
+}
+
+.metric-card {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 14px 16px;
+  transition: background 0.2s;
+}
+
+.metric-card:hover {
+  background: #f1f3f4;
+}
+
+.metric-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.metric-label {
+  font-size: 12px;
+  color: #f8f9fb;
+  font-weight: 500;
+}
+
+.metric-trend {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.metric-trend.trend-up {
+  color: #ea4335;
+}
+
+.metric-trend.trend-down {
+  color: #34a853;
+}
+
+.metric-trend.trend-neutral {
+  color: #fafbfc;
+}
+
+.metric-value {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1a2332;
+}
+
+.no-data {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 0;
+  color: #d5dbe3;
+  font-size: 14px;
+}
+
+@media (max-width: 1200px) {
+  .metrics-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+
+  .metric-card {
+    padding: 12px;
+  }
+
+  .metric-value {
+    font-size: 18px;
+  }
+}
+
+@media (max-width: 480px) {
+  .metrics-grid {
+    grid-template-columns: 1fr;
+  }
+}

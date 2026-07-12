@@ -36,6 +36,7 @@ async def run_analysis_pipeline(
     label: str | None,
     fast_risk_score: float,
     fast_action: str | None = None,  # Action from fast path (what actually happened)
+    latency_ms: float | None = None,
 ):
     try:
         logger.info(
@@ -90,7 +91,7 @@ async def run_analysis_pipeline(
             }
 
         # -------------------------------------------------------
-        # 🔥 ALWAYS run penalty manager with CURRENT risk score
+        # ALWAYS run penalty manager with CURRENT risk score
         # This updates Redis for future requests
         # -------------------------------------------------------
         try:
@@ -114,7 +115,7 @@ async def run_analysis_pipeline(
             )
 
         # -------------------------------------------------------
-        # 🔥 LOG what actually happened (fast path decision)
+        # LOG what actually happened (fast path decision)
         # -------------------------------------------------------
         # The fast path decision is what happened to THIS request
         # Use it for logging, separate from penalty_decision
@@ -155,6 +156,7 @@ async def run_analysis_pipeline(
             label=label,
             penalty_action=penalty_decision.action,  # For debugging
             penalty_risk=penalty_decision.risk_score,
+            latency_ms=latency_ms,
         )
 
         logger.debug(
@@ -187,6 +189,7 @@ async def _log_to_db(
     label,
     penalty_action: str = None,  # For debugging
     penalty_risk: float = None,
+    latency_ms: float = None,
 ):
     try:
         async with AsyncSessionLocal() as db:
@@ -224,6 +227,7 @@ async def _log_to_db(
                     explanation_json=explanation,
                     ground_truth_label=label,
                     request_uuid=request_uuid,
+                    latency_ms=latency_ms,
                 )
             )
 

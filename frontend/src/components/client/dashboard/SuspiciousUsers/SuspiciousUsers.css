@@ -1,0 +1,205 @@
+/* src/components/client/dashboard/SuspiciousUsers/SuspiciousUsers.css */
+.users-container {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 24px;
+  border: 1px solid #e8eaed;
+}
+
+.users-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.users-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a2332;
+  margin: 0;
+}
+
+.view-all-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  border: 1px solid #e8eaed;
+  border-radius: 6px;
+  background: transparent;
+  color: #1a73e8;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.view-all-btn:hover {
+  background: #f1f3f4;
+  border-color: #d2e3fc;
+}
+
+.table-wrapper {
+  overflow-x: auto;
+}
+
+.users-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.users-table thead {
+  border-bottom: 2px solid #f1f3f4;
+}
+
+.users-table th {
+  text-align: left;
+  padding: 12px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7a8f;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.users-table td {
+  padding: 12px 8px;
+  border-bottom: 1px solid #f1f3f4;
+  font-size: 14px;
+  color: #1a2332;
+}
+
+.users-table tr:last-child td {
+  border-bottom: none;
+}
+
+.user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.user-id {
+  font-weight: 500;
+  color: #1a2332;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+}
+
+.user-ip {
+  font-size: 12px;
+  color: #6b7a8f;
+  font-family: 'Courier New', monospace;
+}
+
+.threat-score {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.score-bar {
+  flex: 1;
+  height: 6px;
+  background: #f1f3f4;
+  border-radius: 3px;
+  overflow: hidden;
+  min-width: 60px;
+}
+
+.score-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.6s ease;
+}
+
+.score-fill.critical {
+  background: #d93025;
+}
+
+.score-fill.high {
+  background: #ea4335;
+}
+
+.score-fill.medium {
+  background: #fbbc04;
+}
+
+.score-fill.low {
+  background: #34a853;
+}
+
+.score-value {
+  font-weight: 600;
+  font-size: 13px;
+  min-width: 36px;
+  color: #1a2332;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.action-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.action-badge.blocked {
+  background: #fce8e6;
+  color: #ea4335;
+}
+
+.action-badge.monitor {
+  background: #e8f0fe;
+  color: #1a73e8;
+}
+
+.no-data {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 0;
+  color: #6b7a8f;
+  font-size: 14px;
+}
+
+@media (max-width: 768px) {
+  .users-table {
+    font-size: 13px;
+  }
+
+  .users-table th,
+  .users-table td {
+    padding: 8px 4px;
+  }
+
+  .user-ip {
+    display: none;
+  }
+
+  .score-bar {
+    min-width: 40px;
+  }
+
+  .users-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .view-all-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
