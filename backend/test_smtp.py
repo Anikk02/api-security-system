@@ -2,14 +2,14 @@ import sys, os
 sys.path.insert(0, '.')
 
 from dotenv import load_dotenv
-load_dotenv(r'C:\Users\lordk\OneDrive\Desktop\TriAnSer\api-security-system\backend\.env')
 
 import smtplib
+from app.core.config import settings
 
-host = os.environ.get('SMTP_HOST', '')
-port = int(os.environ.get('SMTP_PORT', 587))
-user = os.environ.get('SMTP_USER', '')
-pwd  = os.environ.get('SMTP_PASSWORD', '')
+host = settings.SMTP_HOST
+port = settings.SMTP_PORT
+user = settings.SMTP_USER
+pwd  = settings.SMTP_PASSWORD
 
 print(f'SMTP_HOST = {host}')
 print(f'SMTP_PORT = {port}')
