@@ -7,6 +7,7 @@ from typing import Any
 
 from app.policy.context import PenaltyContext
 from app.policy.types import TrustLevel
+from app.policy.constants import VIOLATIONS_MEDIUM_BLOCK
 
 
 @dataclass(slots=True)
@@ -42,10 +43,10 @@ class TrustEngine:
     # Weights for each time scale
     # ==========================================================
 
-    RISK_WEIGHT = 0.30          # Current request risk
+    RISK_WEIGHT = 0.50          # Current request risk
     BEHAVIORAL_WEIGHT = 0.20    # Behavioral patterns (regularity, burst, etc.)
-    HISTORY_WEIGHT = 0.25       # EWMA of recent suspicion
-    REPUTATION_WEIGHT = 0.25    # Long-term reputation
+    HISTORY_WEIGHT = 0.15       # EWMA of recent suspicion
+    REPUTATION_WEIGHT = 0.15    # Long-term reputation
 
     # ==========================================================
     # Penalty caps
@@ -93,10 +94,11 @@ class TrustEngine:
         # 2. Behavioral Patterns (from FeatureBuilder)
         # -------------------------------------------------
 
-        behavioral_penalty = self._compute_behavioral_penalty(features)
+        raw_behavioral_penalty = self._compute_behavioral_penalty(features)
+        behavioral_penalty = raw_behavioral_penalty * self.BEHAVIORAL_WEIGHT
         trust -= behavioral_penalty
 
-        if behavioral_penalty > self.BEHAVIORAL_PENALTY_THRESHOLD:
+        if raw_behavioral_penalty > self.BEHAVIORAL_PENALTY_THRESHOLD:
             reasons.append("Suspicious behavioral pattern")
 
         # -------------------------------------------------
@@ -124,14 +126,20 @@ class TrustEngine:
         # -------------------------------------------------
         # 5. Violations
         # -------------------------------------------------
-
+        # Scale so MAX_VIOLATION_PENALTY is reached right at the hard
+        # block cap (VIOLATIONS_MEDIUM_BLOCK), instead of saturating
+        # early and going flat for a long stretch before the block
+        # actually fires (was hardcoded 0.015, saturating at count=10
+        # regardless of where the hard caps sat).
+        
+        per_violation_penalty = self.MAX_VIOLATION_PENALTY / VIOLATIONS_MEDIUM_BLOCK
         violation_penalty = min(
-            ctx.violation_count * 0.015,
+            ctx.violation_count * per_violation_penalty,
             self.MAX_VIOLATION_PENALTY,
         )
         trust -= violation_penalty
 
-        if ctx.violation_count >= 5:
+        if ctx.violation_count >= 20:
             reasons.append(f"{ctx.violation_count} recent violations")
 
         # -------------------------------------------------
@@ -223,7 +231,7 @@ class TrustEngine:
         ctx.metadata["trust_level"] = result.level.value
         ctx.metadata["trust_score"] = result.trust
 
-        behavioral_penalty = cls._compute_behavioral_penalty(features)
+        behavioral_penalty = cls._compute_behavioral_penalty(features) * cls.BEHAVIORAL_WEIGHT
 
         # Also store the components for debugging
         ctx.metadata["trust_components"] = {

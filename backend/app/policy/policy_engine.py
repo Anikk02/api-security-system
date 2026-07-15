@@ -147,9 +147,13 @@ class PolicyEngine:
         # -------------------------------------------------
 
         if context.is_throttled:
+            still_suspicious = suspicion_score >= medium_threshold
             return PenaltyDecision(
                 action="throttle",
-                reason="Throttle already active",
+                reason=("Continuing suspicious activity during active throttle"
+                if still_suspicious
+                else "Throttle already active"
+                ),
 
                 risk_score=context.risk_score,
                 trust_score=trust_score,
@@ -158,7 +162,7 @@ class PolicyEngine:
                 should_throttle=True,
                 throttle_duration=THROTTLE_DURATION,
 
-                increment_violation=True,  # ✅ Ignoring an active throttle is itself a violation
+                increment_violation=still_suspicious,  # ✅ Ignoring an active throttle is itself a violation
 
                 learn_baseline=False,  # ❌ Never learn from repeated offenses during an active
                                         #    throttle - feeds adaptive thresholds with the
@@ -167,6 +171,7 @@ class PolicyEngine:
 
                 metadata={
                     "throttle_type": "active",
+                    "still_suspicious": still_suspicious,
                 },
             )
 

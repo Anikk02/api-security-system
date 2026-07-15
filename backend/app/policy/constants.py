@@ -144,8 +144,8 @@ EXTREME_ROTATION_MULTIPLIER = 1.50
 
 REPUTATION_HARD_BLOCK = 0.90
 
-VIOLATIONS_MEDIUM_BLOCK = 8
-VIOLATIONS_SOFT_BLOCK = 5
+VIOLATIONS_MEDIUM_BLOCK = 50
+VIOLATIONS_SOFT_BLOCK = 30
 
 # ==============================================================================
 # Recovery
