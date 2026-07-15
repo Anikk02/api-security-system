@@ -6,28 +6,28 @@ import "./ActivityPage.css";
 
 // ✅ Lazy load components
 const DecisionTrendChart = lazy(() => 
-  import("../../../components/client/activity/charts/DecisionTrendChart/DecisionTrendChart")
+  import("../../../components/client/Activity/charts/DecisionTrendChart/DecisionTrendChart")
 );
 const EndpointDistribution = lazy(() => 
-  import("../../../components/client/activity/charts/EndpointDistribution/EndpointDistribution")
+  import("../../../components/client/Activity/charts/EndpointDistribution/EndpointDistribution")
 );
 const ThreatTimeline = lazy(() => 
-  import("../../../components/client/activity/charts/ThreatTimeline/ThreatTimeline")
+  import("../../../components/client/Activity/charts/ThreatTimeline/ThreatTimeline")
 );
 const SystemHealthCard = lazy(() => 
-  import("../../../components/client/activity/widgets/SystemHealthCard/SystemHealthCard")
+  import("../../../components/client/Activity/widgets/SystemHealthCard/SystemHealthCard")
 );
 const PeakAttackCard = lazy(() => 
-  import("../../../components/client/activity/widgets/PeakAttackCard/PeakAttackCard")
+  import("../../../components/client/Activity/widgets/PeakAttackCard/PeakAttackCard")
 );
 const TopEndpointCard = lazy(() => 
-  import("../../../components/client/activity/widgets/TopEndpointCard/TopEndpointCard")
+  import("../../../components/client/Activity/widgets/TopEndpointCard/TopEndpointCard")
 );
 const AttackPatterns = lazy(() => 
-  import("../../../components/client/activity/patterns/AttackPatterns/AttackPatterns")
+  import("../../../components/client/Activity/patterns/AttackPatterns/AttackPatterns")
 );
 const SpikeCorrelation = lazy(() => 
-  import("../../../components/client/activity/patterns/SpikeCorrelation/SpikeCorrelation")
+  import("../../../components/client/Activity/patterns/SpikeCorrelation/SpikeCorrelation")
 );
 
 function ActivityPage() {
